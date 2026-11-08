@@ -77,8 +77,9 @@ public final class RegenConfig {
         }
     }
 
+    /** Each problem once, even when a bad default is inherited by several worlds. */
     public List<String> errors() {
-        return errors;
+        return List.copyOf(new java.util.LinkedHashSet<>(errors));
     }
 
     public boolean healthy() {

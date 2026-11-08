@@ -319,7 +319,14 @@ if (FULL) {
   await s.ended()
   const h1 = hashTree(path.join(dir, 'world'))
   check('dry run: the startup step changed no world file', diffTrees(h0, h1).length === 0, diffTrees(h0, h1).slice(0, 3).join(', '))
-  check('dry run: it reported what it would do', /Dry run for \S+ \(world\): would do \d+ full resets/.test(s.log), (s.log.match(/Dry run for[^\n]*/) || [''])[0].slice(0, 200))
+  // The halt above can beat the logger to the console, so the saved result is checked, then the log on a normal start.
+  const saved = readFileSync(path.join(s.dataDir, 'runs', run2, 'run.properties'), 'utf8').match(/dryRunResult=([^\n]*)/)
+  check('dry run: the run records what it would do', !!saved && /would do \d+ full resets/.test(saved[1]), saved ? saved[1] : 'nothing saved')
+  const h2 = hashTree(path.join(dir, 'world'))
+  await s.start()
+  check('dry run: a normal start logs what it would do, with where the details are', /Dry run for \S+ \(world\): would do \d+ full resets[^\n]*check\.txt/.test(s.log), (s.log.match(/Dry run for[^\n]*/) || [''])[0].slice(0, 220))
+  check('dry run: the reset chunk is still in the world', regionHas(sites.mined.cx, sites.mined.cz) === undoneHashBefore)
+  await s.stop()
 
   // ---- kill -9 at several points ----
   console.log('\n## Crash recovery')

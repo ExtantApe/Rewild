@@ -116,7 +116,29 @@ If a provider throws, nothing in that world resets. If Lantern Graves is running
 
 ## Testing
 
-Results go here.
+`./gradlew build` runs 52 unit tests on made-up world files: region and NBT round trips, the tracking store's crash log, every keep rule, and the startup step's crash, rollback, undo and dry-run paths.
+
+`test/acceptance.mjs` runs the same plugin on throwaway Paper servers, in a temp folder on 127.0.0.1, with worlds generated fresh from a fixed seed. A mineflayer bot plays: it digs, builds, makes paths with a shovel and claims land. The full suite passed on Paper **26.1.2, 26.2 and 26.3**, with GriefPrevention, Multiverse-Core, Multiverse-Inventories and BlueMap installed: 90 checks on 26.3, and 88 on 26.1.2 and 26.2. Those two ran one build earlier, which listed repeated config errors more than once and checked the dry-run report only in the log.
+
+**Passed on all three:**
+
+- **Keep rules:** a player-placed chest, bed, small build, named pet, respawn point, world spawn, GriefPrevention claim, and a player standing nearby each keep their chunk, and `/wr why` names the reason. Three connected paths across a chunk border keep both chunks. A lone path, a stray torch, and a village's own paths, beds and villagers don't.
+- **Resets:** a mined-out chunk and an explosion crater were removed at the restart, and kept chunks stayed identical, byte for byte. Chunks generated before install stay unknown, and a fresh install on an already-played world proposes nothing.
+- **Seams:** reset chunks met their neighbours at exactly the same ground height. Ground shape agreed with a fresh copy of the seed on at least 99.98% of blocks. About 4 to 5% of underground blocks were a different stone or ore (see Known limits).
+- **Below ground:** a tunnel 40 blocks down came back as fresh terrain, matching a fresh copy on 99.99% of blocks below the cut, while the chest on the surface stayed.
+- **Undo:** restored the reset chunks byte for byte, including the below-ground one.
+- **Dry run:** a world-file hash before and after the startup step showed no change.
+- **Crashes:** the process was halted dead (like `kill -9`) before the backup, before a region write and before the store update. Each time, the next start finished the run from its journal, and the server loaded the world without chunk errors. A real `kill -9` during startup left the chunk either reset or untouched, never broken.
+- **Failing safely:** a read-only world folder failed the run with no file changed. Missing GriefPrevention, a broken config, a tracker that can't save and a changed datapack each stopped resets, and said why.
+- **Other:** the cap held, the temporary reference world was deleted, and Multiverse and BlueMap still worked after the runs. A scan of the test world took about 100 ms, with no change in tick time (about 6 ms average before and after).
+
+**Mocked or not tested:**
+
+- **The client side.** The bot speaks 1.21.11 and reaches 26.x through ViaVersion and ViaBackwards, so no real 26.x client was involved. Whether seams look natural in game, whether `/wr preview` is readable, and whether a reset area feels fresh all need a person in a real client.
+- **Scale.** Scan speed and tick time were measured on a small test world with a few thousand tracked chunks, not a long-played one.
+- **Disk full** was simulated by making the trash folder unwritable (a unit test), not by filling a disk.
+- **Lantern Graves** doesn't exist yet. `test/keep.mjs` stands in for it with a tiny plugin of the same name. On 26.3, a chunk it reported was kept, and `/wr why` named it. Its neighbour was buffered. When it registered nothing, every reset stopped. The real plugin still needs testing once it exists. CoreProtect has no 26.x release to test with, and the plugin doesn't use it yet.
+- **Multiverse-Portals** and the BlueMap layer were not exercised. Only BlueMap loading alongside was checked.
 
 ## Building
 

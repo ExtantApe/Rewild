@@ -1,0 +1,11 @@
+name: LanternGraves
+version: test-stub
+main: stub.KeepStub
+api-version: '26.1'
+description: Test stand-in only. Never install on a real server.
+dependencies:
+  server:
+    WildernessRegen:
+      load: BEFORE
+      required: true
+      join-classpath: true

@@ -1,0 +1,128 @@
+# WildernessRegen settings.
+#
+# Nothing resets unless all of these hold: the world is enabled below, an admin has approved a run with
+# /wr approve, and dry-run is false. While dry-run is true, an approved run is checked at the next restart and
+# reported in the log, and no world file changes.
+dry-run: true
+
+# Worlds are off unless listed here with enabled: true. Use the world's name as the server knows it.
+# Any setting under "defaults" can be overridden per world.
+worlds:
+  example_world:
+    enabled: false
+  # example_world_nether:
+  #   enabled: true
+  #   idle:
+  #     days-without-changes: 60
+
+# The claim plugin that must be running before anything resets. If it's missing or broken, nothing resets.
+# Set to "none" only for a server with no claim plugin at all.
+claims:
+  plugin: GriefPrevention
+
+defaults:
+  damage:
+    # Player-removed blocks needed before a chunk is worth resetting. Leaves, plants and snow don't count.
+    min-removed-blocks: 40
+    # Blocks destroyed by explosions (creepers, TNT and so on) that count as a crater on their own.
+    min-explosion-blocks: 12
+    # Removing these never counts as damage.
+    ignore: ["*_LEAVES", "SHORT_GRASS", "TALL_GRASS", "FERN", "LARGE_FERN", "SNOW", "VINE", "*_VINES", "*_VINES_PLANT",
+             "SEAGRASS", "TALL_SEAGRASS", "KELP", "KELP_PLANT", "DEAD_BUSH", "SUGAR_CANE", "SWEET_BERRY_BUSH",
+             "*_SAPLING", "*_TULIP", "DANDELION", "POPPY", "*_ORCHID", "ALLIUM", "AZURE_BLUET", "OXEYE_DAISY",
+             "CORNFLOWER", "LILY_OF_THE_VALLEY", "SUNFLOWER", "LILAC", "ROSE_BUSH", "PEONY", "*_MUSHROOM",
+             "GLOW_LICHEN", "MOSS_CARPET", "*_CARPET", "PINK_PETALS", "LEAF_LITTER", "WILDFLOWERS", "BUSH",
+             "FIREFLY_BUSH", "*_DRY_GRASS", "CACTUS_FLOWER", "WHEAT", "CARROTS", "POTATOES", "BEETROOTS"]
+  idle:
+    # Days since a player last changed anything in the chunk.
+    days-without-changes: 30
+    # Days since a player was in or near the chunk.
+    days-without-visitors: 7
+    # How near counts as "near", in chunks.
+    visit-radius-chunks: 2
+    # Days a chunk waits after it was reset before it can be reset again.
+    days-since-last-reset: 30
+  keep:
+    # Chunks around anything kept are kept too.
+    buffer-chunks: 1
+    # Chunks within this many chunks of a claim are kept.
+    claim-buffer-chunks: 1
+    spawn-radius-chunks: 8
+    # Around every player's bed or respawn point.
+    respawn-radius-chunks: 1
+    # Player-made dirt paths keep their chunk once this many are connected. Paths across a chunk border count for both.
+    path-min-connected: 3
+    # A chunk whose player-placed blocks add up to this score is kept. See "intent" below.
+    intent-score: 8
+    # Chunks holding part of these structures are kept.
+    structures: ["minecraft:stronghold"]
+    # In the End, every chunk within this many blocks of 0,0 is kept, which covers the main island and exit portal.
+    end-main-island-radius-blocks: 1100
+  underground:
+    # Reset only below ground when the surface is kept but the ground under it is mined out.
+    enabled: true
+    # How far below the lowest surface point the cut sits, in blocks. The cut is rounded down to a 16-block section.
+    margin-blocks: 8
+    # Player-removed blocks below the cut needed before it's worth repairing.
+    min-removed-blocks: 40
+
+# Blocks that show a player meant something, when a player placed them. Natural ones don't count.
+# Patterns may use * as a wildcard. Anything not listed counts for nothing.
+intent:
+  # Any one of these, placed by a player, keeps its chunk.
+  keep: ["*_BED", "CHEST", "TRAPPED_CHEST", "BARREL", "*SHULKER_BOX", "*_SIGN", "*_HANGING_SIGN", "*_BANNER",
+         "LECTERN", "ITEM_FRAME", "GLOW_ITEM_FRAME", "ARMOR_STAND", "FLOWER_POT", "POTTED_*", "DECORATED_POT",
+         "ENCHANTING_TABLE", "BREWING_STAND", "ANVIL", "CHIPPED_ANVIL", "DAMAGED_ANVIL", "RESPAWN_ANCHOR", "BEACON",
+         "JUKEBOX", "*_DOOR", "NETHER_PORTAL", "OBSIDIAN", "RAIL", "POWERED_RAIL", "DETECTOR_RAIL", "ACTIVATOR_RAIL",
+         "REDSTONE_WIRE", "REPEATER", "COMPARATOR", "PISTON", "STICKY_PISTON", "OBSERVER", "DISPENSER", "DROPPER",
+         "HOPPER", "LEVER", "*_BUTTON", "*_PRESSURE_PLATE", "REDSTONE_TORCH", "REDSTONE_WALL_TORCH",
+         "DAYLIGHT_DETECTOR", "TARGET", "REDSTONE_LAMP", "NOTE_BLOCK", "TRIPWIRE_HOOK", "CRAFTER", "END_PORTAL_FRAME"]
+  # These add up. A small cabin passes intent-score; a stray torch doesn't.
+  score:
+    "*_PLANKS": 1
+    "*_STAIRS": 1
+    "*_SLAB": 1
+    "*_FENCE": 1
+    "*_FENCE_GATE": 1
+    "*_WALL": 1
+    "*GLASS": 1
+    "*GLASS_PANE": 1
+    "*_WOOL": 1
+    "BRICKS": 1
+    "*_BRICKS": 1
+    "TORCH": 1
+    "WALL_TORCH": 1
+    "SOUL_TORCH": 1
+    "SOUL_WALL_TORCH": 1
+    "LANTERN": 2
+    "SOUL_LANTERN": 2
+    "CAMPFIRE": 2
+    "SOUL_CAMPFIRE": 2
+    "FARMLAND": 1
+    "LADDER": 1
+    "FURNACE": 3
+    "BLAST_FURNACE": 3
+    "SMOKER": 3
+    "CRAFTING_TABLE": 3
+    "*_TRAPDOOR": 1
+    "*_LOG": 1
+    "STRIPPED_*": 1
+
+run:
+  # Most chunks one run may reset.
+  max-chunks: 200
+  # Connected groups of at least this many chunks go first. Smaller groups fill any room left under max-chunks.
+  min-group-size: 1
+  # An approved run that hasn't been applied after this many days lapses, and needs a new scan.
+  approval-expires-days: 7
+  # Tell players in a world when a run there is approved, without saying where.
+  warn-players: true
+  warn-message: "<gray>Some untouched wild land in this world will refresh at the next restart. Builds, claims and paths are never touched."
+
+trash:
+  # Removed chunks are copied here first, so /wr undo can bring them back. Older trash is cleared at startup.
+  keep-days: 30
+
+# Shows kept, queued and unknown chunks as a BlueMap layer, if BlueMap is installed.
+bluemap:
+  enabled: true

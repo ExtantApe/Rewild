@@ -5,6 +5,10 @@
 # reported in the log, and no world file changes.
 dry-run: true
 
+# Worlds that must never reset, whatever else this file says. Put every kids' world here. A world listed here is
+# never tracked, scanned or reset, even if it's also enabled below.
+never-reset-worlds: []
+
 # Worlds are off unless listed here with enabled: true. Use the world's name as the server knows it.
 # Any setting under "defaults" can be overridden per world.
 worlds:
@@ -123,6 +127,8 @@ trash:
   # Removed chunks are copied here first, so /wr undo can bring them back. Older trash is cleared at startup.
   keep-days: 30
 
-# Shows kept, queued and unknown chunks as a BlueMap layer, if BlueMap is installed.
+# Shows kept, queued and unknown chunks as a BlueMap layer, if BlueMap is installed. Off by default: kept chunks show
+# where people build and sleep, and anyone who can open the web map could see that. Turn it on only for a map that's
+# private to admins.
 bluemap:
-  enabled: true
+  enabled: false

@@ -14,7 +14,6 @@ import com.extantape.wildernessregen.track.TrackerListener;
 import com.extantape.wildernessregen.track.Tracking;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.HashMap;
@@ -58,6 +57,18 @@ public final class WildernessRegenPlugin extends JavaPlugin {
             getLogger().log(Level.SEVERE, "The startup step failed; world files are as the journal last recorded", e);
         }
         startupStores = applier.stores();
+        if (Boolean.getBoolean("wildernessregen.test.haltAfterStartup")) {
+            // Test servers only: stop right after the startup step, before the server writes anything, so a test can
+            // compare world files and see exactly what this step changed.
+            for (WorldStore s : startupStores.values()) {
+                try {
+                    s.close();
+                } catch (java.io.IOException ignored) {
+                }
+            }
+            getLogger().severe("TEST: halting after the startup step");
+            Runtime.getRuntime().halt(0);
+        }
     }
 
     @Override
@@ -78,12 +89,9 @@ public final class WildernessRegenPlugin extends JavaPlugin {
                 getLogger().warning("BlueMap is installed but its API couldn't be loaded; no map layer: " + e);
             }
         }
-        PluginCommand cmd = getCommand("wr");
-        if (cmd != null) {
-            WrCommand wr = new WrCommand(this);
-            cmd.setExecutor(wr);
-            cmd.setTabCompleter(wr);
-        }
+        WrCommand wr = new WrCommand(this);
+        getLifecycleManager().registerEventHandler(io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents.COMMANDS,
+                event -> event.registrar().register("wr", "WildernessRegen admin tools", List.of("wildernessregen"), wr));
         if (config.dryRun) getLogger().info("Dry run is on: approved runs are checked at startup and nothing resets.");
         if (tracking.states().isEmpty()) getLogger().info("No world is enabled yet. Add one under worlds: in config.yml.");
     }

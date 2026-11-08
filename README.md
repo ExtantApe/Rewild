@@ -1,0 +1,131 @@
+# WildernessRegen
+
+A Paper plugin that quietly resets abandoned, mined-out chunks so survival worlds stay wild. It never removes anything that looks intentional. When in doubt, it keeps the chunk.
+
+**Status:** pre-release. It has passed its tests on throwaway Paper servers with a bot as the player (see [Testing](#testing)). It hasn't run on a real server, and nobody has looked at a reset area in a real game client yet.
+
+- Paper 26.1 and newer, Java 25. Not Spigot, and not 1.21.x.
+- Off in every world until you turn it on. Dry run by default. Worlds in `never-reset-worlds`, such as kids' worlds, can never be turned on by mistake.
+- Nothing resets until an admin approves a run, and every run can be undone.
+
+## How it works
+
+1. **Track.** From the moment a world is enabled, the plugin records what players change in each chunk: blocks they break and place, paths they make with a shovel, containers they put things in, and explosion damage. Growth, decay and fire don't count.
+2. **Scan.** `/wr scan` scores every chunk the tracker has seen damaged and checks it against the keep rules below. Chunks that pass go into a proposed run.
+3. **Approve.** An admin checks the run with `/wr preview` and `/wr why`, then approves it with `/wr approve`.
+4. **Reset.** At the next restart, before any world loads, the plugin checks every chunk again with the server stopped. Then it removes the chunks from the world's files, so they generate fresh from the seed. Players in the world get a vague warning when a run is approved, which doesn't say where.
+
+A chunk generated before the world was enabled is **unknown**. The plugin can't tell what a player built there from what was always there, so it never resets an unknown chunk. On a world that's already been played, only land explored after install can ever reset.
+
+### What keeps a chunk
+
+Any one of these keeps a chunk, plus one chunk around it:
+
+- A GriefPrevention claim, or within one chunk of one.
+- A player-made dirt path, once about 3 path blocks connect. Paths across a chunk border keep both chunks. A lone accidental path doesn't count, and neither do village paths.
+- A player-placed bed, chest, barrel, sign, banner, door, rail, redstone, portal frame and the like. Natural ones, such as village beds and mineshaft rails, don't count.
+- Player-placed building blocks adding up to a score of 8. A small cabin passes. A stray torch or crafting table doesn't.
+- A container a player put items in, even a natural one.
+- Named, tamed or leashed animals, villagers who have traded, allays, armor stands and item frames.
+- World spawn, every player's bed or respawn point, and any player online nearby.
+- Strongholds, and the End's main island.
+- Areas an admin marked with `/wr protect`, Multiverse portals, and anything another plugin reports (see [For plugin authors](#for-plugin-authors)).
+- A neighbour generated before tracking began. A reset chunk only blends with neighbours made by the same generator.
+
+### When a chunk can reset
+
+All of these must hold, and every number is in `config.yml`:
+
+- At least 40 blocks removed by players, or an explosion crater of 12 blocks.
+- No player changes for 30 days.
+- No player in or near it for 7 days.
+- At least 30 days since it last reset.
+
+Admins in spectator or creative mode don't count as visitors, so looking around before approving doesn't hold a run back.
+
+### Below-ground repair
+
+Sometimes the surface is kept, because someone lives there, but the ground under it is mined out and abandoned. Then only the 16-block sections below a cut reset, and the surface stays exactly as it is. The cut sits at least 8 blocks below the lowest point of the surface, rounded down to a section.
+
+When the run is approved, the plugin generates a fresh copy of each such chunk in a temporary world with the same seed and generator, then deletes that world. At the restart it swaps in the sections below the cut. Before it does, it checks the bedrock pattern of the copy against the real chunk, and it refuses if they differ. A repair doesn't happen if anything kept reaches below the cut, if players changed or visited anything down there recently, or if the chunk is in a claim, at spawn or in an admin-protected area. It only runs in overworld-type worlds.
+
+## Safety
+
+- **Dry run by default.** With `dry-run: true`, an approved run is checked at the next restart and reported in the log, and no world file changes.
+- **Fail closed.** If the claim plugin isn't running, the tracker can't save, config.yml has an error, or another plugin can't report what it needs kept, nothing resets, and `/wr scan` says why.
+- **A final check at shutdown.** Claims, respawn points and other plugins are read when the server stops, and the startup step uses that reading. If the server didn't shut down cleanly, the run waits for a clean restart.
+- **Generator fingerprint.** The plugin saves the game version, seed, generator and a hash of the datapacks. If any of them changes, resets stop and the log names the change with a sample of affected chunks. After checking, `/wr approve generator <world>` carries on, and chunks generated before the change stay unknown.
+- **Capped.** At most 200 chunks a run. Connected groups go first.
+- **Trash and undo.** Every region file a run touches is copied to `plugins/WildernessRegen/trash/<date>/<run>/` first, at the same path it has under the server folder. Copies are kept 30 days. `/wr undo <run>` puts the run's chunks back at the next restart, including their entities and points of interest, and discards anything built there since.
+- **Crash-safe.** Each file is rewritten through a temporary file and an atomic rename. A journal records progress, so a crash at any point either finishes the run at the next start or rolls it back from the trash copies.
+
+## Install
+
+1. Put `WildernessRegen-<version>.jar` in `plugins/`, next to GriefPrevention.
+2. Start the server once, then enable a world in `plugins/WildernessRegen/config.yml`:
+
+   ```yaml
+   worlds:
+     example_world:
+       enabled: true
+   ```
+
+3. Restart. Tracking starts then. Nothing can reset until the tracker has watched a chunk from the moment it was generated, and the idle times have passed.
+4. When you're ready, set `dry-run: false`.
+
+If the server has no claim plugin at all, set `claims.plugin: none`.
+
+## Commands
+
+All commands need `wildernessregen.admin`, which ops have. Players get no commands.
+
+| Command | What it does |
+| --- | --- |
+| `/wr status` | Shows each world's tracked and unknown chunks, its health, and recent runs. |
+| `/wr why [world] [x z]` | Explains why a chunk is kept, waiting, unknown or queued. It defaults to the chunk you're standing in, and takes chunk coordinates. |
+| `/wr preview [radius]` | Outlines nearby chunks in particles for 30 seconds: red resets, orange resets below ground, green kept, yellow waiting, grey unknown. |
+| `/wr scan [world]` | Scans and proposes a run. |
+| `/wr approve <run>` | Approves a run for the next restart. |
+| `/wr approve generator <world>` | Accepts a changed world generator. |
+| `/wr undo <run>` | Cancels an approved run, or undoes an applied one at the next restart. |
+| `/wr protect [radius] [note]` | Keeps the chunks around you forever. `/wr protect list` and `/wr protect remove` manage them. |
+| `/wr reload` | Reloads config.yml. |
+
+With `bluemap.enabled: true`, the last scan also appears as a BlueMap layer. It's off by default, because kept chunks show where people build and sleep. Only turn it on for a map that only admins can open.
+
+## For plugin authors
+
+Another plugin can keep chunks by registering a `KeepProvider` with Bukkit's services manager:
+
+```java
+getServer().getServicesManager().register(KeepProvider.class,
+        world -> graves.chunksIn(world).stream().map(c -> new KeepProvider.Keep(c.x(), c.z(), "an active grave")).toList(),
+        this, ServicePriority.Normal);
+```
+
+If a provider throws, nothing in that world resets. If Lantern Graves is running and hasn't registered one, nothing resets either.
+
+## Known limits
+
+- Only chunks explored after install can ever reset. History from CoreProtect can't be imported yet.
+- A chunk at the edge of explored land waits until the land around it is explored too.
+- A reset chunk doesn't come back block-for-block identical to a fresh world. The shape of the ground is the same (in tests, more than 99.9% of blocks agree on solid or open), and it meets its neighbours at the same height. What differs is the features the game scatters through terrain, because some of them spread in from neighbouring chunks when those generated, and they don't again. In tests, about 4 to 6% of a reset chunk's underground blocks were plain stone or a different ore or stone blob from a fresh world: granite, diorite, andesite, tuff, dirt, gravel or ore. At the surface, a tree from the next chunk can be cut off at the edge. Below-ground repairs don't have this problem, because their terrain comes from a fresh copy generated along with its neighbours.
+- A below-ground repair drops mobs and items under the cut, and doesn't bring back mineshaft minecarts.
+- GriefPrevention is the only claim plugin supported. Animated Architecture has no hook, but its builds are made of player-placed blocks, which the tracker sees.
+- Undo restores a chunk as it was before the run, so anything built in it since is lost.
+
+## Testing
+
+Results go here.
+
+## Building
+
+```bash
+./gradlew build
+```
+
+The jar is written to `build/libs/`. It needs Java 25.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

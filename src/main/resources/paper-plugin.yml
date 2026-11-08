@@ -1,0 +1,33 @@
+name: WildernessRegen
+version: '${version}'
+main: com.extantape.wildernessregen.WildernessRegenPlugin
+api-version: '26.1'
+description: Quietly resets abandoned, damaged chunks so survival worlds stay wild, and keeps anything that looks intentional.
+website: https://github.com/ExtantApe/WildernessRegen
+dependencies:
+  server:
+    # Load after these so their data is there when a scan or the shutdown check reads it. None is required.
+    GriefPrevention:
+      load: BEFORE
+      required: false
+    Multiverse-Core:
+      load: BEFORE
+      required: false
+    Multiverse-Portals:
+      load: BEFORE
+      required: false
+    LanternGraves:
+      load: BEFORE
+      required: false
+    CoreProtect:
+      load: BEFORE
+      required: false
+    BlueMap:
+      load: BEFORE
+      required: false
+      # The map layer uses BlueMap's API classes directly.
+      join-classpath: true
+permissions:
+  wildernessregen.admin:
+    description: Use /wr. Players get no commands.
+    default: op

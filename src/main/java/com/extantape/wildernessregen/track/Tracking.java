@@ -194,20 +194,11 @@ public final class Tracking {
     }
 
     /**
-     * The world's dimension folder: the one holding region/, entities/ and poi/. Found through the server API, never
-     * from the world's name. On 26.x that's the folder the API returns; older layouts keep the Nether and End one level
-     * down in DIM-1 and DIM1.
+     * The world's dimension folder: the one holding region/, entities/ and poi/. On 26.x every world is a dimension
+     * under the level folder, and the server API returns that folder. Never built from the world's name.
      */
     public static Path dimensionFolder(World w) {
-        Path folder = w.getWorldFolder().toPath().toAbsolutePath().normalize();
-        if (Files.isDirectory(folder.resolve("region"))) return folder;
-        String sub = switch (w.getEnvironment()) {
-            case NETHER -> "DIM-1";
-            case THE_END -> "DIM1";
-            default -> null;
-        };
-        if (sub != null && Files.isDirectory(folder.resolve(sub))) return folder.resolve(sub);
-        return folder;
+        return w.getWorldFolder().toPath().toAbsolutePath().normalize();
     }
 
     private void flushAll() {

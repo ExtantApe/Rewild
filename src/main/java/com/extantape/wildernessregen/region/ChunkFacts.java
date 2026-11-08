@@ -62,8 +62,6 @@ public final class ChunkFacts {
                 readChunk(f, chunk);
                 Nbt.Compound entities = region("entities", cx, cz).readNbt(RegionFile.index(cx, cz));
                 if (entities != null) readEntities(f, entities.getList("Entities"));
-                // Before 1.17 entities lived in the chunk itself; harmless to check.
-                readEntities(f, chunk.getList("Entities"));
             } catch (IOException | RuntimeException e) {
                 f.error = e.getClass().getSimpleName() + ": " + e.getMessage();
             }
@@ -124,13 +122,28 @@ public final class ChunkFacts {
         }
     }
 
+    /**
+     * Block names in a section's palette. 26.x writes a plain string when a list holds only names, and otherwise wraps a
+     * bare name as {"": name} and a block with properties as {id, properties}. A world upgraded from 1.21 can still hold
+     * chunks nobody has loaded since, in the older {Name, Properties} form, so that's read too.
+     */
     public static String[] palette(Nbt.Compound states) {
         Nbt.NbtList p = states.getList("palette");
-        if (p == null) return new String[]{"minecraft:air"};
-        List<Nbt.Compound> entries = p.compounds();
-        String[] out = new String[entries.size()];
-        for (int i = 0; i < out.length; i++) out[i] = entries.get(i).getString("Name");
+        if (p == null || p.items().isEmpty()) return new String[]{"minecraft:air"};
+        String[] out = new String[p.items().size()];
+        for (int i = 0; i < out.length; i++) out[i] = blockName(p.items().get(i));
         return out;
+    }
+
+    static String blockName(Object entry) {
+        if (entry instanceof String s) return s;
+        if (entry instanceof Nbt.Compound c) {
+            if (c.get("Name") instanceof String s) return s;
+            if (c.get("id") instanceof String s) return s;
+            if (c.get("") instanceof String s) return s;
+            if (c.get("") instanceof Nbt.Compound inner) return blockName(inner);
+        }
+        return "minecraft:unknown";
     }
 
     /** Since 1.16, entries never straddle two longs. */

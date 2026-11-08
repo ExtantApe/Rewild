@@ -100,6 +100,24 @@ class RegionTest {
     }
 
     @Test
+    void readsEveryPaletteEncoding() {
+        // 1.21.11: {Name, Properties}. 26.x: bare strings, {"": name} in mixed lists, and {id, properties}.
+        Nbt.Compound old = new Nbt.Compound();
+        old.put("Name", "minecraft:oak_log");
+        Nbt.Compound wrapped = new Nbt.Compound();
+        wrapped.put("", "minecraft:stone");
+        Nbt.Compound modern = new Nbt.Compound();
+        modern.put("id", "minecraft:sculk_vein");
+        modern.put("properties", new Nbt.Compound());
+        Nbt.Compound states = new Nbt.Compound();
+        states.put("palette", new Nbt.NbtList(Nbt.COMPOUND, java.util.List.of(old, wrapped, modern)));
+        assertArrayEquals(new String[]{"minecraft:oak_log", "minecraft:stone", "minecraft:sculk_vein"}, ChunkFacts.palette(states));
+        Nbt.Compound strings = new Nbt.Compound();
+        strings.put("palette", new Nbt.NbtList(Nbt.STRING, java.util.List.of("minecraft:air", "minecraft:dirt")));
+        assertArrayEquals(new String[]{"minecraft:air", "minecraft:dirt"}, ChunkFacts.palette(strings));
+    }
+
+    @Test
     void savedEntityRules() {
         Nbt.Compound v = TestChunks.entity("minecraft:villager", 64);
         assertNull(ChunkFacts.keepReason(v));

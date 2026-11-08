@@ -33,6 +33,8 @@ public final class RegenConfig {
     public final String warnMessage;
     public final int trashKeepDays;
     public final boolean blueMap;
+    /** Worlds that never reset, overriding enabled. Kids' worlds belong here. */
+    public final java.util.Set<String> neverReset = new java.util.HashSet<>();
     public final List<String> intentKeep;
     public final Map<String, Integer> intentScore;
     private final Map<String, WorldSettings> worlds = new HashMap<>();
@@ -48,7 +50,9 @@ public final class RegenConfig {
         warnPlayers = bool(c, "run.warn-players", true);
         warnMessage = string(c, "run.warn-message", "Some untouched wild land in this world will refresh at the next restart.");
         trashKeepDays = positive(c, "trash.keep-days", 30);
-        blueMap = bool(c, "bluemap.enabled", true);
+        blueMap = bool(c, "bluemap.enabled", false);
+        if (c.contains("never-reset-worlds") && !c.isList("never-reset-worlds")) errors.add("never-reset-worlds must be a list of world names");
+        neverReset.addAll(c.getStringList("never-reset-worlds"));
         intentKeep = patterns(c, "intent.keep");
         intentScore = new LinkedHashMap<>();
         ConfigurationSection score = c.getConfigurationSection("intent.score");
@@ -81,14 +85,15 @@ public final class RegenConfig {
         return errors.isEmpty();
     }
 
-    /** Settings for a world. A world not listed is disabled. */
+    /** Settings for a world. A world not listed, or listed in never-reset-worlds, is disabled. */
     public WorldSettings world(String name) {
+        if (neverReset.contains(name)) return disabled;
         return worlds.getOrDefault(name, disabled);
     }
 
     public List<String> enabledWorldNames() {
         List<String> out = new ArrayList<>();
-        worlds.forEach((k, v) -> { if (v.enabled()) out.add(k); });
+        worlds.forEach((k, v) -> { if (v.enabled() && !neverReset.contains(k)) out.add(k); });
         return out;
     }
 

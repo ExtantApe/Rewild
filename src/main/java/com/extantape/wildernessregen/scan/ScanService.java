@@ -66,6 +66,7 @@ public final class ScanService {
         }
         if (k.claimsProblem != null) problem[0] = "claims: " + k.claimsProblem;
         else if (k.externalProblem != null) problem[0] = k.externalProblem;
+        else if (!cfg.healthy()) problem[0] = "config.yml has problems: " + String.join("; ", cfg.errors());
         return ctx;
     }
 

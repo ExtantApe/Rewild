@@ -96,7 +96,9 @@ public final class Keepers {
 
     private static Location safeRespawn(OfflinePlayer p) {
         try {
-            return p.getRespawnLocation();
+            // false: the saved point as is. The no-argument form drops a point whose bed is gone, and a point set by
+            // /spawnpoint or a respawn anchor still marks a place the player means to come back to.
+            return p.getRespawnLocation(false);
         } catch (RuntimeException | LinkageError e) {
             return null;
         }

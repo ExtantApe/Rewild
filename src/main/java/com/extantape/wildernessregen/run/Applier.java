@@ -165,7 +165,9 @@ public final class Applier {
         Scanner scanner = new Scanner(ctx, records, facts);
 
         List<Run.Entry> plan = new ArrayList<>();
-        StringBuilder report = new StringBuilder("# Startup check, " + java.time.Instant.ofEpochMilli(now) + "\n");
+        StringBuilder report = new StringBuilder("# Startup check of run " + run.id + " in " + name + ", "
+                + java.time.Instant.ofEpochMilli(now) + (config.dryRun ? " (dry run: nothing was changed)" : "")
+                + "\n# Chunk coordinates, then what happened. /wr why <world> <x> <z> explains any chunk.\n");
         int full = 0, under = 0, skipped = 0;
         for (Run.Entry e : proposed) {
             Scanner.Verdict v = scanner.evaluate(e.x(), e.z());
@@ -183,7 +185,8 @@ public final class Applier {
                 decision = "skipped: " + (v.kind() == Scanner.Kind.UNDERGROUND || v.kind() == Scanner.Kind.QUEUED
                         ? "approved as a different kind of reset, or its reference terrain is missing" : String.join("; ", v.reasons()));
             }
-            report.append(e.x()).append(", ").append(e.z()).append(": ").append(decision).append('\n');
+            report.append(e.x()).append(", ").append(e.z()).append(": ").append(decision)
+                    .append("   (blocks ").append(e.x() * 16).append(", ").append(e.z() * 16).append(")\n");
         }
         RegionFile.writeFileAtomically(run.dir.resolve("check.txt"), report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         String summary = full + " full resets and " + under + " below-ground repairs; " + skipped + " skipped (see check.txt)";
@@ -193,7 +196,8 @@ public final class Applier {
             run.set("dryRunResult", "would do " + summary);
             run.save();
             log.info("Dry run for " + run.id + " (" + name + "): would do " + summary + ". No world file changed."
-                    + " Set dry-run: false in config.yml to apply it at a later restart.");
+                    + " Each chunk's decision is in " + dataFolder.relativize(run.dir.resolve("check.txt"))
+                    + ". Set dry-run: false in config.yml to apply it at a later restart.");
             return;
         }
         if (plan.isEmpty()) {

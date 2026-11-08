@@ -161,7 +161,7 @@ public final class Scanner {
         if (keep.isEmpty() && fullDamage) {
             ChunkFacts own = facts.get(key);
             if (own == null || !own.ok() || !own.present) {
-                why.add(own == null || !own.ok() ? "its saved data couldn't be read" : "it isn't in the world's files yet");
+                why.add(own == null || !own.ok() ? "its saved data couldn't be read" : "it hasn't been saved to the world's files yet; it's checked again after the next save");
                 return new Verdict(x, z, Kind.KEPT, why, 0);
             }
             List<String> waiting = timing(r.lastChange, r.lastVisit, r.lastReset);

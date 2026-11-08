@@ -11,9 +11,9 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
-import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabExecutor;
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import org.bukkit.entity.Player;
 
 import java.io.IOException;
@@ -25,8 +25,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** /wr: admin-only. Players get no commands. */
-public final class WrCommand implements TabExecutor {
+/** /wr: admin-only, registered through Paper's command API. Players get no commands. */
+public final class WrCommand implements BasicCommand {
+    public static final String PERMISSION = "wildernessregen.admin";
     private static final List<String> SUBS = List.of("status", "why", "preview", "scan", "approve", "undo", "protect", "reload");
     private final WildernessRegenPlugin plugin;
 
@@ -38,11 +39,27 @@ public final class WrCommand implements TabExecutor {
         s.sendMessage(Component.text(text, c));
     }
 
+    /** A clickable [label] that puts a command in the chat box, ready to check and send. */
+    static Component button(String label, String command, String hover) {
+        return Component.text("[" + label + "]", NamedTextColor.AQUA)
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.suggestCommand(command))
+                .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(Component.text(hover + "\n" + command, NamedTextColor.GRAY)));
+    }
+
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("wildernessregen.admin")) {
+    public String permission() {
+        return PERMISSION;
+    }
+
+    @Override
+    public void execute(CommandSourceStack source, String[] args) {
+        run(source.getSender(), args);
+    }
+
+    void run(CommandSender sender, String[] args) {
+        if (!sender.hasPermission(PERMISSION)) {
             say(sender, NamedTextColor.RED, "You don't have permission to use WildernessRegen.");
-            return true;
+            return;
         }
         String sub = args.length == 0 ? "status" : args[0].toLowerCase(Locale.ROOT);
         try {
@@ -59,13 +76,12 @@ public final class WrCommand implements TabExecutor {
                     if (errors.isEmpty()) say(sender, NamedTextColor.GREEN, "Config reloaded. New thresholds apply to the next scan.");
                     else say(sender, NamedTextColor.RED, "Config reloaded with problems, so nothing will reset: " + String.join("; ", errors));
                 }
-                default -> say(sender, NamedTextColor.GRAY, "/wr status | why [x z] | preview [radius] | scan [world] | approve <run> | approve generator <world> | undo <run> | protect [radius] [note] | protect remove | protect list | reload");
+                default -> say(sender, NamedTextColor.GRAY, "/wr status | why [world] [x z] | preview [radius] | scan [world] | approve <run> | approve generator <world> | undo <run> | protect [radius] [note] | protect remove | protect list | reload");
             }
         } catch (IOException e) {
             say(sender, NamedTextColor.RED, "That failed: " + e.getMessage());
             plugin.getLogger().log(java.util.logging.Level.WARNING, "/wr " + sub + " failed", e);
         }
-        return true;
     }
 
     private static String date(long ms) {
@@ -93,28 +109,49 @@ public final class WrCommand implements TabExecutor {
         for (Run r : runs.subList(from, runs.size())) {
             String extra = r.get("dryRunResult") != null && r.state() == Run.State.APPROVED ? " Last dry run: " + r.get("dryRunResult") + "." : "";
             String check = r.get("lastCheck") != null && r.state() == Run.State.APPROVED ? " Last startup: " + r.get("lastCheck").replaceFirst("^\\d+ ", "") + "." : "";
-            say(sender, NamedTextColor.GRAY, "Run " + r.id + " (" + r.get("worldName") + "): " + r.state().name().toLowerCase().replace('_', ' ')
-                    + (r.get("note") != null ? ", " + r.get("note") : "") + "." + extra + check);
+            Component line = Component.text("Run " + r.id + " (" + r.get("worldName") + "): " + r.state().name().toLowerCase().replace('_', ' ')
+                    + (r.get("note") != null ? ", " + r.get("note") : "") + "." + extra + check, NamedTextColor.GRAY);
+            switch (r.state()) {
+                case PROPOSED -> line = line.append(Component.text(" ")).append(button("Approve", "/wr approve " + r.id, "Apply this run at the next restart"));
+                case APPROVED -> line = line.append(Component.text(" ")).append(button("Cancel", "/wr undo " + r.id, "Cancel before it's applied"));
+                case APPLIED -> line = line.append(Component.text(" ")).append(button("Undo", "/wr undo " + r.id, "Put these chunks back at the next restart"));
+                default -> { }
+            }
+            sender.sendMessage(line);
         }
     }
 
     private void why(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player p)) {
-            say(sender, NamedTextColor.RED, "Run /wr why in game.");
+        World world;
+        int x, z;
+        int at = 1;
+        if (args.length >= 4) {
+            world = Bukkit.getWorld(args[1]);
+            at = 2;
+        } else {
+            world = sender instanceof Player p ? p.getWorld() : null;
+        }
+        if (world == null) {
+            say(sender, NamedTextColor.RED, "Usage: /wr why [world] [chunkX chunkZ]");
             return;
         }
-        int x = p.getLocation().getBlockX() >> 4, z = p.getLocation().getBlockZ() >> 4;
-        if (args.length >= 3) {
+        if (args.length >= at + 2) {
             try {
-                x = Integer.parseInt(args[1]);
-                z = Integer.parseInt(args[2]);
+                x = Integer.parseInt(args[at]);
+                z = Integer.parseInt(args[at + 1]);
             } catch (NumberFormatException e) {
-                say(sender, NamedTextColor.RED, "Use chunk coordinates: /wr why <chunkX> <chunkZ>");
+                say(sender, NamedTextColor.RED, "Use chunk coordinates: /wr why [world] <chunkX> <chunkZ>");
                 return;
             }
+        } else if (sender instanceof Player p) {
+            x = p.getLocation().getBlockX() >> 4;
+            z = p.getLocation().getBlockZ() >> 4;
+        } else {
+            say(sender, NamedTextColor.RED, "Usage: /wr why <world> <chunkX> <chunkZ>");
+            return;
         }
         int fx = x, fz = z;
-        plugin.scans().scan(p.getWorld(), Set.of(ChunkRecord.key(x, z))).whenComplete((r, err) -> {
+        plugin.scans().scan(world, Set.of(ChunkRecord.key(x, z))).whenComplete((r, err) -> {
             if (err != null) {
                 say(sender, NamedTextColor.RED, "Couldn't check: " + err.getMessage());
                 return;
@@ -190,8 +227,17 @@ public final class WrCommand implements TabExecutor {
             }
             try {
                 Run run = plugin.runs().propose(w, r);
-                if (run == null) say(sender, NamedTextColor.GRAY, "Nothing to reset. Use /wr why where you expected a reset.");
-                else say(sender, NamedTextColor.GOLD, "Proposed run " + run.id + ". Check it with /wr preview, then /wr approve " + run.id + ".");
+                if (run == null) {
+                    say(sender, NamedTextColor.GRAY, "Nothing to reset. Use /wr why where you expected a reset.");
+                } else {
+                    say(sender, NamedTextColor.GOLD, "Proposed run " + run.id + ". Check it with /wr preview, then /wr approve " + run.id + ".");
+                    sender.sendMessage(Component.text("  ")
+                            .append(button("Preview", "/wr preview 6", "Outline the chunks around you"))
+                            .append(Component.text(" "))
+                            .append(button("Why here", "/wr why", "Explain the chunk you're standing in"))
+                            .append(Component.text(" "))
+                            .append(button("Approve " + run.id, "/wr approve " + run.id, "Apply this run at the next restart")));
+                }
             } catch (IOException e) {
                 say(sender, NamedTextColor.RED, "Couldn't save the run: " + e.getMessage());
             }
@@ -303,8 +349,11 @@ public final class WrCommand implements TabExecutor {
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (!sender.hasPermission("wildernessregen.admin")) return List.of();
+    public java.util.Collection<String> suggest(CommandSourceStack source, String[] args) {
+        CommandSender sender = source.getSender();
+        if (!sender.hasPermission(PERMISSION)) return List.of();
+        // Paper passes an empty last argument while a new word is being typed.
+        if (args.length == 0) return SUBS;
         if (args.length == 1) return SUBS.stream().filter(s -> s.startsWith(args[0].toLowerCase(Locale.ROOT))).toList();
         String sub = args[0].toLowerCase(Locale.ROOT);
         if (args.length == 2 && (sub.equals("approve") || sub.equals("undo"))) {

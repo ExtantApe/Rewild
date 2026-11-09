@@ -1,4 +1,4 @@
-# WildernessRegen settings.
+# Rewild settings.
 #
 # Nothing resets unless all of these hold: the world is enabled below, an admin has approved a run with
 # /wr approve, and dry-run is false. While dry-run is true, an approved run is checked at the next restart and

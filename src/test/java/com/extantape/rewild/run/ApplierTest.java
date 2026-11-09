@@ -289,6 +289,21 @@ class ApplierTest {
     }
 
     @Test
+    void aWorldAddedToNeverResetAfterApprovalIsNeverReset() throws Exception {
+        // README: worlds in never-reset-worlds, such as kids' worlds, can never be turned on by mistake. That holds even
+        // for a run approved before the world was added to the list: the startup step checks again and refuses.
+        Run run = approvedRun(fullResets());
+        YamlConfiguration y = YamlConfiguration.loadConfiguration(new InputStreamReader(getClass().getResourceAsStream("/config.yml")));
+        y.set("dry-run", false);
+        y.set("worlds.testworld.enabled", true);
+        y.set("never-reset-worlds", java.util.List.of("testworld"));
+        Map<String, String> before = worldHashes();
+        new Applier(data, LOG, new RegenConfig(y), VERSION).runStartup();
+        assertTrue(reload(run).get("lastCheck").contains("isn't enabled"), reload(run).get("lastCheck"));
+        assertEquals(before, worldHashes(), "no world file changed");
+    }
+
+    @Test
     void finalCheckDropsChunksThatChangedOrGainedAClaimAfterApproval() throws Exception {
         Run run = approvedRun(fullResets());
         WorldStore s = WorldStore.open(data.resolve("worlds").resolve(WORLD.toString()));

@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** /wr preview: outlines nearby chunks in coloured particles, only for the admin who asked, for 30 seconds. */
+/** /rewild preview: outlines nearby chunks in coloured particles, only for the admin who asked, for 30 seconds. */
 public final class Preview {
     static final int SECONDS = 30;
     private final Plugin plugin;
@@ -57,7 +57,7 @@ public final class Preview {
                     .append(Component.text("orange resets below ground", NamedTextColor.GOLD)).append(Component.text(", "))
                     .append(Component.text("green kept", NamedTextColor.GREEN)).append(Component.text(", "))
                     .append(Component.text("yellow waiting", NamedTextColor.YELLOW)).append(Component.text(", "))
-                    .append(Component.text("grey unknown", NamedTextColor.GRAY)).append(Component.text(". /wr why explains one chunk.", NamedTextColor.GRAY)));
+                    .append(Component.text("grey unknown", NamedTextColor.GRAY)).append(Component.text(". /rewild why explains one chunk.", NamedTextColor.GRAY)));
             if (r.problem() != null) p.sendMessage(Component.text("Nothing here resets right now: " + r.problem(), NamedTextColor.RED));
             int[] ticks = {0};
             BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {

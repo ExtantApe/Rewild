@@ -16,7 +16,7 @@ import java.util.Collection;
  * a restart that may apply a run. If a provider throws, nothing in that world resets.
  */
 public interface KeepProvider {
-    /** A chunk to keep, and the reason shown by /wr why, such as "an active grave". */
+    /** A chunk to keep, and the reason shown by /rewild why, such as "an active grave". */
     record Keep(int chunkX, int chunkZ, String reason) {}
 
     /** Every chunk in this world that must be kept right now. */

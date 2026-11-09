@@ -167,7 +167,7 @@ public final class Applier {
         List<Run.Entry> plan = new ArrayList<>();
         StringBuilder report = new StringBuilder("# Startup check of run " + run.id + " in " + name + ", "
                 + java.time.Instant.ofEpochMilli(now) + (config.dryRun ? " (dry run: nothing was changed)" : "")
-                + "\n# Chunk coordinates, then what happened. /wr why <world> <x> <z> explains any chunk.\n");
+                + "\n# Chunk coordinates, then what happened. /rewild why <world> <x> <z> explains any chunk.\n");
         int full = 0, under = 0, skipped = 0;
         for (Run.Entry e : proposed) {
             Scanner.Verdict v = scanner.evaluate(e.x(), e.z());
@@ -212,7 +212,7 @@ public final class Applier {
         run.setState(Run.State.APPLYING, null);
         run.log("start");
         execute(run, store, plan);
-        log.info("Run " + run.id + " (" + name + ") applied: " + summary + ". Undo with /wr undo " + run.id + ".");
+        log.info("Run " + run.id + " (" + name + ") applied: " + summary + ". Undo with /rewild undo " + run.id + ".");
     }
 
     /** Why a run can't be applied now, or null if nothing stands in the way. */

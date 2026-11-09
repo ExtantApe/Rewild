@@ -70,7 +70,7 @@ public final class RewildCommand implements BasicCommand {
         RewildCommand self = this;
         return new BasicCommand() {
             @Override public void execute(CommandSourceStack source, String[] args) {
-                String line = "/rewild and /wildernessregen are the old names for /rewild. They still work in 0.2.x but go in the next release.";
+                String line = "/wr and /wildernessregen are the old names for /rewild. They still work in 0.2.x but go in the next release.";
                 plugin.getLogger().warning(line);
                 if (!(source.getSender() instanceof org.bukkit.command.ConsoleCommandSender)) say(source.getSender(), NamedTextColor.YELLOW, line);
                 self.execute(source, args);
@@ -213,7 +213,7 @@ public final class RewildCommand implements BasicCommand {
 
     private void preview(CommandSender sender, String[] args) {
         if (!(sender instanceof Player p)) {
-            say(sender, NamedTextColor.RED, "Run /wr preview in game.");
+            say(sender, NamedTextColor.RED, "Run /rewild preview in game.");
             return;
         }
         int radius = 4;
@@ -231,7 +231,7 @@ public final class RewildCommand implements BasicCommand {
     private void scan(CommandSender sender, String[] args) {
         World w = args.length >= 2 ? Bukkit.getWorld(args[1]) : sender instanceof Player p ? p.getWorld() : null;
         if (w == null) {
-            say(sender, NamedTextColor.RED, args.length >= 2 ? "No loaded world called " + args[1] + "." : "Name a world: /wr scan <world>");
+            say(sender, NamedTextColor.RED, args.length >= 2 ? "No loaded world called " + args[1] + "." : "Name a world: /rewild scan <world>");
             return;
         }
         say(sender, NamedTextColor.GRAY, "Scanning " + w.getName() + "...");
@@ -259,7 +259,7 @@ public final class RewildCommand implements BasicCommand {
                 if (run == null) {
                     say(sender, NamedTextColor.GRAY, "Nothing to reset. Use /rewild why where you expected a reset.");
                 } else {
-                    say(sender, NamedTextColor.GOLD, "Proposed run " + run.id + ". Check it with /wr preview, then /wr approve " + run.id + ".");
+                    say(sender, NamedTextColor.GOLD, "Proposed run " + run.id + ". Check it with /rewild preview, then /rewild approve " + run.id + ".");
                     sender.sendMessage(Component.text("  ")
                             .append(button("Preview", "/rewild preview 6", "Outline the chunks around you"))
                             .append(Component.text(" "))
@@ -290,7 +290,7 @@ public final class RewildCommand implements BasicCommand {
             return;
         }
         if (args.length < 2) {
-            say(sender, NamedTextColor.RED, "Usage: /wr approve <run>");
+            say(sender, NamedTextColor.RED, "Usage: /rewild approve <run>");
             return;
         }
         Run run = plugin.runs().find(args[1]);
@@ -320,7 +320,7 @@ public final class RewildCommand implements BasicCommand {
 
     private void undo(CommandSender sender, String[] args) throws IOException {
         if (args.length < 2) {
-            say(sender, NamedTextColor.RED, "Usage: /wr undo <run>");
+            say(sender, NamedTextColor.RED, "Usage: /rewild undo <run>");
             return;
         }
         Run run = plugin.runs().find(args[1]);
@@ -329,12 +329,12 @@ public final class RewildCommand implements BasicCommand {
             return;
         }
         say(sender, NamedTextColor.GOLD, plugin.runs().undo(run));
-        plugin.getLogger().info(sender.getName() + " ran /wr undo " + run.id + "; it is now " + run.state());
+        plugin.getLogger().info(sender.getName() + " ran /rewild undo " + run.id + "; it is now " + run.state());
     }
 
     private void protect(CommandSender sender, String[] args) throws IOException {
         if (!(sender instanceof Player p)) {
-            say(sender, NamedTextColor.RED, "Run /wr protect in game.");
+            say(sender, NamedTextColor.RED, "Run /rewild protect in game.");
             return;
         }
         WorldState s = plugin.tracking().state(p.getWorld());

@@ -165,12 +165,12 @@ public final class Tracking {
             plugin.getLogger().warning("World " + w.getName() + ": the world generator changed (" + String.join(", ", diff)
                     + "). Resets there are stopped. Chunks generated before now won't reset, because new terrain wouldn't"
                     + " blend with them. Sample of affected chunks: " + (where.length() == 0 ? "none tracked" : where)
-                    + ". After checking, run /wr approve generator " + w.getName() + " to carry on.");
+                    + ". After checking, run /rewild approve generator " + w.getName() + " to carry on.");
         }
         s.epoch = epoch;
         String changed = s.store.meta("generatorChanged");
         if (changed != null) s.problem = "the world generator changed (" + changed.substring(changed.indexOf(' ') + 1)
-                + "); run /wr approve generator " + w.getName() + " after checking";
+                + "); run /rewild approve generator " + w.getName() + " after checking";
     }
 
     public static Fingerprint fingerprint(World w, Path packs) throws IOException {

@@ -1,7 +1,7 @@
 # Rewild settings.
 #
 # Nothing resets unless all of these hold: the world is enabled below, an admin has approved a run with
-# /wr approve, and dry-run is false. While dry-run is true, an approved run is checked at the next restart and
+# /rewild approve, and dry-run is false. While dry-run is true, an approved run is checked at the next restart and
 # reported in the log, and no world file changes.
 dry-run: true
 
@@ -124,7 +124,7 @@ run:
   warn-message: "<gray>Some untouched wild land in this world will refresh at the next restart. Builds, claims and paths are never touched."
 
 trash:
-  # Removed chunks are copied here first, so /wr undo can bring them back. Older trash is cleared at startup.
+  # Removed chunks are copied here first, so /rewild undo can bring them back. Older trash is cleared at startup.
   keep-days: 30
 
 # Shows kept, queued and unknown chunks as a BlueMap layer, if BlueMap is installed. Off by default: kept chunks show

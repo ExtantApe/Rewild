@@ -295,7 +295,7 @@ for (const k of ['mined', 'torch', 'crater']) {
 console.log('\n## Undo')
 await s.start()
 const undoOut = await s.cmd(`rewild undo ${runId}`, /undone at the next restart|nothing to undo|can't/)
-check('/wr undo accepted', /undone at the next restart/.test(undoOut))
+check('/rewild undo accepted', /undone at the next restart/.test(undoOut))
 await s.stop()
 const undoneHashBefore = before.mined
 await s.start()

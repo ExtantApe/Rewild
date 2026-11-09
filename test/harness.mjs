@@ -11,7 +11,7 @@ import { Vec3 } from 'vec3'
 
 export const HERE = path.dirname(fileURLToPath(import.meta.url))
 export const REPO = path.resolve(HERE, '..')
-export const CACHE = path.join(os.homedir(), '.cache/wildernessregen-test')
+export const CACHE = path.join(os.homedir(), '.cache/rewild-test')
 export const PORT = 25616
 export const JAVA = process.env.WR_JAVA || '/Library/Java/JavaVirtualMachines/openjdk-25.jdk/Contents/Home/bin/java'
 export const sleep = ms => new Promise(r => setTimeout(r, ms))
@@ -36,7 +36,7 @@ export function report(file) {
 
 /** A fresh server folder. Paper's downloaded libraries are cloned from a primed folder to save time. */
 export function freshServer(version, { seed = 424242, plugins = [], config = null, props = {} } = {}) {
-  const dir = mkdtempSync(path.join(os.tmpdir(), `wildernessregen-test-${version}-`))
+  const dir = mkdtempSync(path.join(os.tmpdir(), `rewild-test-${version}-`))
   copyFileSync(path.join(CACHE, `paper-${version}.jar`), path.join(dir, 'paper.jar'))
   const prime = path.join(CACHE, `prime-${version}`)
   for (const f of ['libraries', 'versions', 'cache']) {
@@ -47,17 +47,17 @@ export function freshServer(version, { seed = 424242, plugins = [], config = nul
   const p = {
     'server-ip': '127.0.0.1', 'server-port': PORT, 'level-seed': seed, 'online-mode': false, 'spawn-protection': 0,
     'view-distance': 6, 'simulation-distance': 4, 'max-players': 10, 'enable-command-block': false,
-    'pause-when-empty-seconds': -1, 'white-list': false, 'enforce-whitelist': false, 'motd': 'WildernessRegen test', ...props,
+    'pause-when-empty-seconds': -1, 'white-list': false, 'enforce-whitelist': false, 'motd': 'Rewild test', ...props,
   }
   writeFileSync(path.join(dir, 'server.properties'), Object.entries(p).map(([k, v]) => `${k}=${v}`).join('\n') + '\n')
-  mkdirSync(path.join(dir, 'plugins/WildernessRegen'), { recursive: true })
+  mkdirSync(path.join(dir, 'plugins/Rewild'), { recursive: true })
   for (const j of plugins) copyFileSync(j, path.join(dir, 'plugins', path.basename(j)))
-  if (config) writeFileSync(path.join(dir, 'plugins/WildernessRegen/config.yml'), config)
+  if (config) writeFileSync(path.join(dir, 'plugins/Rewild/config.yml'), config)
   return dir
 }
 
 export function setConfig(dir, config) {
-  writeFileSync(path.join(dir, 'plugins/WildernessRegen/config.yml'), config)
+  writeFileSync(path.join(dir, 'plugins/Rewild/config.yml'), config)
 }
 
 export class Server {
@@ -134,12 +134,12 @@ export class Server {
   /** Deletes this server's folder. Only ever a folder this harness made. */
   remove() {
     if (this.proc && this.proc.exitCode === null) throw new Error('stop the server before removing it')
-    if (!path.basename(this.dir).startsWith('wildernessregen-test-')) throw new Error('refusing to delete ' + this.dir)
+    if (!path.basename(this.dir).startsWith('rewild-test-')) throw new Error('refusing to delete ' + this.dir)
     rmSync(this.dir, { recursive: true, force: true })
   }
 
   get dim() { return dimension(this.dir, 'overworld') }
-  get dataDir() { return path.join(this.dir, 'plugins/WildernessRegen') }
+  get dataDir() { return path.join(this.dir, 'plugins/Rewild') }
 }
 
 /** Where a vanilla dimension's region files live, whichever layout the version uses. */

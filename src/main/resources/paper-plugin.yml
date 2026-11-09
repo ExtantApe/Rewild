@@ -1,9 +1,9 @@
-name: WildernessRegen
+name: Rewild
 version: '${version}'
-main: com.extantape.wildernessregen.WildernessRegenPlugin
+main: com.extantape.rewild.RewildPlugin
 api-version: '26.1'
 description: Quietly resets abandoned, damaged chunks so survival worlds stay wild, and keeps anything that looks intentional.
-website: https://github.com/ExtantApe/WildernessRegen
+website: https://github.com/ExtantApe/Rewild
 dependencies:
   server:
     # Load after these so their data is there when a scan or the shutdown check reads it. None is required.
@@ -28,6 +28,9 @@ dependencies:
       # The map layer uses BlueMap's API classes directly.
       join-classpath: true
 permissions:
-  wildernessregen.admin:
-    description: Use /wr. Players get no commands.
+  rewild.admin:
+    description: Use /rewild. Players get no commands.
     default: op
+  wildernessregen.admin:
+    description: The old name for rewild.admin, from before the rename. Still works in 0.2.x and is removed in the next release.
+    default: false

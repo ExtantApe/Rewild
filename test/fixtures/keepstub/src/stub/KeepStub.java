@@ -1,6 +1,6 @@
 package stub;
 
-import com.extantape.wildernessregen.api.KeepProvider;
+import com.extantape.rewild.api.KeepProvider;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 

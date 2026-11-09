@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds the test stand-in plugin against the Paper API and WildernessRegen's classes.
+# Builds the test stand-in plugin against the Paper API and Rewild's classes.
 set -e
 cd "$(dirname "$0")"
 J=/Library/Java/JavaVirtualMachines/openjdk-25.jdk/Contents/Home/bin

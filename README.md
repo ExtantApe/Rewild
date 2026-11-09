@@ -1,4 +1,4 @@
-# WildernessRegen
+# Rewild
 
 A Paper plugin that quietly resets abandoned, mined-out chunks so survival worlds stay wild. It never removes anything that looks intentional. When in doubt, it keeps the chunk.
 
@@ -11,8 +11,8 @@ A Paper plugin that quietly resets abandoned, mined-out chunks so survival world
 ## How it works
 
 1. **Track.** From the moment a world is enabled, the plugin records what players change in each chunk: blocks they break and place, paths they make with a shovel, containers they put things in, and explosion damage. Growth, decay and fire don't count.
-2. **Scan.** `/wr scan` scores every chunk the tracker has seen damaged and checks it against the keep rules below. Chunks that pass go into a proposed run.
-3. **Approve.** An admin checks the run with `/wr preview` and `/wr why`, then approves it with `/wr approve`.
+2. **Scan.** `/rewild scan` scores every chunk the tracker has seen damaged and checks it against the keep rules below. Chunks that pass go into a proposed run.
+3. **Approve.** An admin checks the run with `/rewild preview` and `/rewild why`, then approves it with `/rewild approve`.
 4. **Reset.** At the next restart, before any world loads, the plugin checks every chunk again with the server stopped. Then it removes the chunks from the world's files, so they generate fresh from the seed. Players in the world get a vague warning when a run is approved, which doesn't say where.
 
 A chunk generated before the world was enabled is **unknown**. The plugin can't tell what a player built there from what was always there, so it never resets an unknown chunk. On a world that's already been played, only land explored after install can ever reset.
@@ -29,7 +29,7 @@ Any one of these keeps a chunk, plus one chunk around it:
 - Named, tamed or leashed animals, villagers who have traded, allays, armor stands and item frames.
 - World spawn, every player's bed or respawn point, and any player online nearby.
 - Strongholds, and the End's main island.
-- Areas an admin marked with `/wr protect`, Multiverse portals, and anything another plugin reports (see [For plugin authors](#for-plugin-authors)).
+- Areas an admin marked with `/rewild protect`, Multiverse portals, and anything another plugin reports (see [For plugin authors](#for-plugin-authors)).
 - A neighbour generated before tracking began. A reset chunk only blends with neighbours made by the same generator.
 
 ### When a chunk can reset
@@ -52,17 +52,17 @@ When the run is approved, the plugin generates a fresh copy of each such chunk i
 ## Safety
 
 - **Dry run by default.** With `dry-run: true`, an approved run is checked at the next restart and reported in the log, and no world file changes.
-- **Fail closed.** If the claim plugin isn't running, the tracker can't save, config.yml has an error, or another plugin can't report what it needs kept, nothing resets, and `/wr scan` says why.
+- **Fail closed.** If the claim plugin isn't running, the tracker can't save, config.yml has an error, or another plugin can't report what it needs kept, nothing resets, and `/rewild scan` says why.
 - **A final check at shutdown.** Claims, respawn points and other plugins are read when the server stops, and the startup step uses that reading. If the server didn't shut down cleanly, the run waits for a clean restart.
-- **Generator fingerprint.** The plugin saves the game version, seed, generator and a hash of the datapacks. If any of them changes, resets stop and the log names the change with a sample of affected chunks. After checking, `/wr approve generator <world>` carries on, and chunks generated before the change stay unknown.
+- **Generator fingerprint.** The plugin saves the game version, seed, generator and a hash of the datapacks. If any of them changes, resets stop and the log names the change with a sample of affected chunks. After checking, `/rewild approve generator <world>` carries on, and chunks generated before the change stay unknown.
 - **Capped.** At most 200 chunks a run. Connected groups go first.
-- **Trash and undo.** Every region file a run touches is copied to `plugins/WildernessRegen/trash/<date>/<run>/` first, at the same path it has under the server folder. Copies are kept 30 days. `/wr undo <run>` puts the run's chunks back at the next restart, including their entities and points of interest, and discards anything built there since.
+- **Trash and undo.** Every region file a run touches is copied to `plugins/Rewild/trash/<date>/<run>/` first, at the same path it has under the server folder. Copies are kept 30 days. `/rewild undo <run>` puts the run's chunks back at the next restart, including their entities and points of interest, and discards anything built there since.
 - **Crash-safe.** Each file is rewritten through a temporary file and an atomic rename. A journal records progress, so a crash at any point either finishes the run at the next start or rolls it back from the trash copies.
 
 ## Install
 
-1. Put `WildernessRegen-<version>.jar` in `plugins/`, next to GriefPrevention.
-2. Start the server once, then enable a world in `plugins/WildernessRegen/config.yml`:
+1. Put `Rewild-<version>.jar` in `plugins/`, next to GriefPrevention.
+2. Start the server once, then enable a world in `plugins/Rewild/config.yml`:
 
    ```yaml
    worlds:
@@ -77,19 +77,19 @@ If the server has no claim plugin at all, set `claims.plugin: none`.
 
 ## Commands
 
-All commands need `wildernessregen.admin`, which ops have. Players get no commands.
+All commands need `rewild.admin`, which ops have. Players get no commands.
 
 | Command | What it does |
 | --- | --- |
-| `/wr status` | Shows each world's tracked and unknown chunks, its health, and recent runs. |
-| `/wr why [world] [x z]` | Explains why a chunk is kept, waiting, unknown or queued. It defaults to the chunk you're standing in, and takes chunk coordinates. |
-| `/wr preview [radius]` | Outlines nearby chunks in particles for 30 seconds: red resets, orange resets below ground, green kept, yellow waiting, grey unknown. |
-| `/wr scan [world]` | Scans and proposes a run. |
-| `/wr approve <run>` | Approves a run for the next restart. |
-| `/wr approve generator <world>` | Accepts a changed world generator. |
-| `/wr undo <run>` | Cancels an approved run, or undoes an applied one at the next restart. |
-| `/wr protect [radius] [note]` | Keeps the chunks around you forever. `/wr protect list` and `/wr protect remove` manage them. |
-| `/wr reload` | Reloads config.yml. |
+| `/rewild status` | Shows each world's tracked and unknown chunks, its health, and recent runs. |
+| `/rewild why [world] [x z]` | Explains why a chunk is kept, waiting, unknown or queued. It defaults to the chunk you're standing in, and takes chunk coordinates. |
+| `/rewild preview [radius]` | Outlines nearby chunks in particles for 30 seconds: red resets, orange resets below ground, green kept, yellow waiting, grey unknown. |
+| `/rewild scan [world]` | Scans and proposes a run. |
+| `/rewild approve <run>` | Approves a run for the next restart. |
+| `/rewild approve generator <world>` | Accepts a changed world generator. |
+| `/rewild undo <run>` | Cancels an approved run, or undoes an applied one at the next restart. |
+| `/rewild protect [radius] [note]` | Keeps the chunks around you forever. `/rewild protect list` and `/rewild protect remove` manage them. |
+| `/rewild reload` | Reloads config.yml. |
 
 With `bluemap.enabled: true`, the last scan also appears as a BlueMap layer. It's off by default, because kept chunks show where people build and sleep. Only turn it on for a map that only admins can open.
 
@@ -122,7 +122,7 @@ If a provider throws, nothing in that world resets. If Lantern Graves is running
 
 **Passed on all three:**
 
-- **Keep rules:** a player-placed chest, bed, small build, named pet, respawn point, world spawn, GriefPrevention claim, and a player standing nearby each keep their chunk, and `/wr why` names the reason. Three connected paths across a chunk border keep both chunks. A lone path, a stray torch, and a village's own paths, beds and villagers don't.
+- **Keep rules:** a player-placed chest, bed, small build, named pet, respawn point, world spawn, GriefPrevention claim, and a player standing nearby each keep their chunk, and `/rewild why` names the reason. Three connected paths across a chunk border keep both chunks. A lone path, a stray torch, and a village's own paths, beds and villagers don't.
 - **Resets:** a mined-out chunk and an explosion crater were removed at the restart, and kept chunks stayed identical, byte for byte. Chunks generated before install stay unknown, and a fresh install on an already-played world proposes nothing.
 - **Seams:** reset chunks met their neighbours at exactly the same ground height. Ground shape agreed with a fresh copy of the seed on at least 99.98% of blocks. About 4 to 5% of underground blocks were a different stone or ore (see Known limits).
 - **Below ground:** a tunnel 40 blocks down came back as fresh terrain, matching a fresh copy on 99.99% of blocks below the cut, while the chest on the surface stayed.
@@ -134,10 +134,10 @@ If a provider throws, nothing in that world resets. If Lantern Graves is running
 
 **Mocked or not tested:**
 
-- **The client side.** The bot speaks 1.21.11 and reaches 26.x through ViaVersion and ViaBackwards, so no real 26.x client was involved. Whether seams look natural in game, whether `/wr preview` is readable, and whether a reset area feels fresh all need a person in a real client.
+- **The client side.** The bot speaks 1.21.11 and reaches 26.x through ViaVersion and ViaBackwards, so no real 26.x client was involved. Whether seams look natural in game, whether `/rewild preview` is readable, and whether a reset area feels fresh all need a person in a real client.
 - **Scale.** Scan speed and tick time were measured on a small test world with a few thousand tracked chunks, not a long-played one.
 - **Disk full** was simulated by making the trash folder unwritable (a unit test), not by filling a disk.
-- **Lantern Graves** doesn't exist yet. `test/keep.mjs` stands in for it with a tiny plugin of the same name. On 26.3, a chunk it reported was kept, and `/wr why` named it. Its neighbour was buffered. When it registered nothing, every reset stopped. The real plugin still needs testing once it exists. CoreProtect has no 26.x release to test with, and the plugin doesn't use it yet.
+- **LanternGraves** didn't exist when these tests were written. `test/keep.mjs` stands in for it with a tiny plugin of the same name. On 26.3, a chunk it reported was kept, and `/rewild why` named it. Its neighbour was buffered. When it registered nothing, every reset stopped. LanternGraves doesn't register a provider yet, so the real pairing is untested. CoreProtect has no 26.x release to test with, and the plugin doesn't use it yet.
 - **Multiverse-Portals** and the BlueMap layer were not exercised. Only BlueMap loading alongside was checked.
 
 ## Building

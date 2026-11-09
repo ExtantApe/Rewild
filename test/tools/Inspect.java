@@ -1,8 +1,8 @@
 // Offline checks on world files for the acceptance tests. Run with the plugin's classes on the classpath:
 //   java -cp build/classes/java/main test/tools/Inspect.java <command> ...
-import com.extantape.wildernessregen.region.ChunkFacts;
-import com.extantape.wildernessregen.region.Nbt;
-import com.extantape.wildernessregen.region.RegionFile;
+import com.extantape.rewild.region.ChunkFacts;
+import com.extantape.rewild.region.Nbt;
+import com.extantape.rewild.region.RegionFile;
 
 import java.nio.file.Path;
 import java.security.MessageDigest;

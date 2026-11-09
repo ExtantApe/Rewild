@@ -5,7 +5,7 @@ api-version: '26.1'
 description: Test stand-in only. Never install on a real server.
 dependencies:
   server:
-    WildernessRegen:
+    Rewild:
       load: BEFORE
       required: true
       join-classpath: true

@@ -11,21 +11,21 @@ import { testConfig } from './configs.mjs'
 
 const VERSION = process.argv[2] || '26.3'
 const FULL = !process.argv.includes('--quick')
-const JAR = path.join(REPO, 'build/libs/WildernessRegen-0.1.0.jar')
+const JAR = path.join(REPO, 'build/libs', readdirSync(path.join(REPO, 'build/libs')).find(f => /^Rewild-[\d.]+\.jar$/.test(f)))
 const P = n => path.join(CACHE, 'p26', n)
 const VIA = [P('ViaVersion-5.12.2.jar'), P('ViaBackwards-5.12.2.jar')]
 // GriefPrevention 16.18.8 is tagged for 26.3 only; 16.18.7 covers 26.1 and 26.2.
 const GP = VERSION === '26.3' ? P('GriefPrevention.jar') : path.join(CACHE, 'p26old', 'GriefPrevention.jar')
 const OTHERS = [GP, P('multiverse-core-5.8.2.jar'), P('multiverse-inventories-5.3.6.jar'), P('bluemap-5.29-paper.jar')]
 const SEED = 424242
-console.log(`# WildernessRegen acceptance on Paper ${VERSION}`)
+console.log(`# Rewild acceptance on Paper ${VERSION}`)
 
 const dir = freshServer(VERSION, { seed: SEED, plugins: [JAR, ...VIA, ...OTHERS], config: testConfig() })
 console.log('server folder: ' + dir)
 const s = new Server(dir)
 const chunk = (x, z) => [x >> 4, z >> 4]
 const why = async (cx, cz) => {
-  const out = await s.cmd(`wr why world ${cx} ${cz}`, new RegExp(`Chunk ${cx}, ${cz}: .*`), 60_000)
+  const out = await s.cmd(`rewild why world ${cx} ${cz}`, new RegExp(`Chunk ${cx}, ${cz}: .*`), 60_000)
   await sleep(500)
   const lines = s.log.slice(s.log.lastIndexOf(`Chunk ${cx}, ${cz}:`)).split('\n').slice(0, 8)
   return lines.filter(l => l.includes(`Chunk ${cx}`) || l.includes(' - ')).join(' | ')
@@ -33,8 +33,8 @@ const why = async (cx, cz) => {
 const regionHas = (cx, cz, kind = 'region') => inspect('has', s.dim, kind, cx, cz)
 
 await s.start()
-check('plugin enabled with no errors', /Enabling WildernessRegen/.test(s.log) && !/Error occurred while enabling WildernessRegen|Could not load.*WildernessRegen/.test(s.log))
-check('onLoad ran before any world loaded', s.log.indexOf('Loading server plugin WildernessRegen') < s.log.search(/Preparing level|Preparing start region/))
+check('plugin enabled with no errors', /Enabling Rewild/.test(s.log) && !/Error occurred while enabling Rewild|Could not load.*Rewild/.test(s.log))
+check('onLoad ran before any world loaded', s.log.indexOf('Loading server plugin Rewild') < s.log.search(/Preparing level|Preparing start region/))
 
 const b = await bot('tester')
 await s.cmd('gamemode creative tester')
@@ -180,7 +180,7 @@ await sleep(3000)
 console.log('\n## Scan and why')
 const MSPT = /Server tick times[^\n]*\n[^\n]*\d/
 const mspt0 = await s.cmd('mspt', MSPT)
-const scanOut = await s.cmd('wr scan world', /Proposed run|Nothing to reset|Nothing can be approved|Scan failed/, 120_000)
+const scanOut = await s.cmd('rewild scan world', /Proposed run|Nothing to reset|Nothing can be approved|Scan failed/, 120_000)
 const mspt1 = await s.cmd('mspt', MSPT)
 note('server tick time before and after the scan', 'avg/min/max over 5s ' + (mspt0.match(/[\d.]+\/[\d.]+\/[\d.]+/) || [''])[0] + ' -> ' + (mspt1.match(/[\d.]+\/[\d.]+\/[\d.]+/) || [''])[0])
 const scanLine = (scanOut.match(/Scanned world in (\d+) ms[^\n]*/) || [''])[0]
@@ -219,7 +219,7 @@ check('chunks generated before the plugin ran are unknown', /unknown/.test(spawn
 
 // ---- approve, then a clean restart applies it ----
 console.log('\n## Approve and apply')
-const approveOut = await s.cmd(`wr approve ${runId}`, /approved|Not approved/, 300_000)
+const approveOut = await s.cmd(`rewild approve ${runId}`, /approved|Not approved/, 300_000)
 check('run approved (with fresh terrain for the below-ground repair)', /Run \S+ approved/.test(approveOut), approveOut.split('\n').filter(l => /approved|Not approved/.test(l)).join(' ').slice(0, 200))
 check('the temporary reference world was cleaned up', !readdirSync(path.join(dir, 'world/dimensions/minecraft')).some(f => f.startsWith('wr_reference_')))
 b.quit()
@@ -294,7 +294,7 @@ for (const k of ['mined', 'torch', 'crater']) {
 // ---- undo ----
 console.log('\n## Undo')
 await s.start()
-const undoOut = await s.cmd(`wr undo ${runId}`, /undone at the next restart|nothing to undo|can't/)
+const undoOut = await s.cmd(`rewild undo ${runId}`, /undone at the next restart|nothing to undo|can't/)
 check('/wr undo accepted', /undone at the next restart/.test(undoOut))
 await s.stop()
 const undoneHashBefore = before.mined
@@ -309,13 +309,13 @@ if (FULL) {
   console.log('\n## Dry run')
   setConfig(dir, testConfig({ dryRun: true }))
   await s.start()
-  const scan2 = await s.cmd('wr scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
+  const scan2 = await s.cmd('rewild scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
   const run2 = (scan2.match(/Proposed run (\S+?)\./) || [])[1]
   check('a second run was proposed after the undo', !!run2, scan2.slice(-200))
-  await s.cmd(`wr approve ${run2}`, /approved|Not approved/, 300_000)
+  await s.cmd(`rewild approve ${run2}`, /approved|Not approved/, 300_000)
   await s.stop()
   const h0 = hashTree(path.join(dir, 'world'))
-  await s.start({ jvm: ['-Dwildernessregen.test.haltAfterStartup=true'], wait: false })
+  await s.start({ jvm: ['-Drewild.test.haltAfterStartup=true'], wait: false })
   await s.ended()
   const h1 = hashTree(path.join(dir, 'world'))
   check('dry run: the startup step changed no world file', diffTrees(h0, h1).length === 0, diffTrees(h0, h1).slice(0, 3).join(', '))
@@ -334,7 +334,7 @@ if (FULL) {
   const markers = ['backup', 'write world/dimensions/minecraft/overworld/region/' + `r.${sites.mined.cx >> 5}.${sites.mined.cz >> 5}.mca`, 'store']
   let runN = run2
   for (const m of markers) {
-    await s.start({ jvm: [`-Dwildernessregen.test.crashAt=${m}`], wait: false })
+    await s.start({ jvm: [`-Drewild.test.crashAt=${m}`], wait: false })
     const code = await s.ended()
     check(`halted like kill -9 before "${m}"`, code === 137, `exit ${code}`)
     await s.start()
@@ -342,20 +342,20 @@ if (FULL) {
     check(`after the crash before "${m}", the mined chunk is reset`, regionHas(sites.mined.cx, sites.mined.cz) === 'absent')
     check(`after the crash before "${m}", the server runs without chunk errors`, !/(Exception|corrupt|Failed to read chunk)/i.test(s.log.replace(/TEST: halting[^\n]*/g, '')))
     // Undo, then a fresh run for the next crash point.
-    await s.cmd(`wr undo ${runN}`, /undone at the next restart|nothing to undo/)
+    await s.cmd(`rewild undo ${runN}`, /undone at the next restart|nothing to undo/)
     await s.stop()
     await s.start()
     check(`undo after the crash before "${m}" restored the chunk`, regionHas(sites.mined.cx, sites.mined.cz) === undoneHashBefore)
-    const sc = await s.cmd('wr scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
+    const sc = await s.cmd('rewild scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
     runN = (sc.match(/Proposed run (\S+?)\./) || [])[1]
-    await s.cmd(`wr approve ${runN}`, /approved|Not approved/, 300_000)
+    await s.cmd(`rewild approve ${runN}`, /approved|Not approved/, 300_000)
     await s.stop()
   }
 
   // A kill -9 from outside, in the middle of the startup step. Where it lands isn't controlled, so this only proves
   // that whatever state it leaves, the next start finishes or rolls back cleanly.
   await s.start({ wait: false })
-  await s.waitFor(/Loading server plugin WildernessRegen/, 120_000)
+  await s.waitFor(/Loading server plugin Rewild/, 120_000)
   await sleep(150)
   await s.kill9()
   await s.start()
@@ -368,17 +368,17 @@ if (FULL) {
   // ---- read-only world folder and a trash that can't be written ----
   console.log('\n## Failing safely')
   await s.start()
-  await s.cmd(`wr undo ${runN}`, /undone at the next restart|nothing to undo/)
+  await s.cmd(`rewild undo ${runN}`, /undone at the next restart|nothing to undo/)
   await s.stop()
   await s.start()
-  const sc = await s.cmd('wr scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
+  const sc = await s.cmd('rewild scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
   const runRO = (sc.match(/Proposed run (\S+?)\./) || [])[1]
-  await s.cmd(`wr approve ${runRO}`, /approved|Not approved/, 300_000)
+  await s.cmd(`rewild approve ${runRO}`, /approved|Not approved/, 300_000)
   await s.stop()
   const regionDir = path.join(s.dim, 'region')
   const hRO = hashTree(regionDir)
   chmodSync(regionDir, 0o555)
-  await s.start({ jvm: ['-Dwildernessregen.test.haltAfterStartup=true'], wait: false })
+  await s.start({ jvm: ['-Drewild.test.haltAfterStartup=true'], wait: false })
   await s.ended()
   chmodSync(regionDir, 0o755)
   check('read-only world folder: the run failed and no region file changed', diffTrees(hRO, hashTree(regionDir)).length === 0 &&
@@ -390,7 +390,7 @@ if (FULL) {
   const gpAway = path.join(dir, 'GriefPrevention.jar.away')
   ;(await import('node:fs')).renameSync(gp, gpAway)
   await s.start()
-  const noGp = await s.cmd('wr scan world', /Nothing can be approved|Proposed run|Nothing to reset/, 120_000)
+  const noGp = await s.cmd('rewild scan world', /Nothing can be approved|Proposed run|Nothing to reset/, 120_000)
   check('claim plugin missing: scan refuses to propose and says why', /Nothing can be approved[^\n]*GriefPrevention isn't running/.test(noGp))
   await s.stop()
   ;(await import('node:fs')).renameSync(gpAway, gp)
@@ -398,14 +398,14 @@ if (FULL) {
   setConfig(dir, testConfig().replace('max-chunks: 200', 'max-chunks: lots'))
   await s.start()
   check('broken config: logged at startup', /config.yml: run.max-chunks must be a whole number/.test(s.log))
-  const badCfg = await s.cmd('wr scan world', /Nothing can be approved|Proposed run|Nothing to reset/, 120_000)
+  const badCfg = await s.cmd('rewild scan world', /Nothing can be approved|Proposed run|Nothing to reset/, 120_000)
   check('broken config: scan refuses to propose', /Nothing can be approved[^\n]*config.yml/.test(badCfg))
   await s.stop()
   setConfig(dir, testConfig({ maxChunks: 2 }))
 
   // Cap
   await s.start()
-  const capped = await s.cmd('wr scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
+  const capped = await s.cmd('rewild scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
   const capId = (capped.match(/Proposed run (\S+?)\./) || [])[1]
   const capChunks = capId ? readFileSync(path.join(s.dataDir, 'runs', capId, 'chunks.txt'), 'utf8').trim().split('\n').length : -1
   check('the cap holds: max-chunks 2 proposes 2', capChunks === 2, `${capChunks} chunks`)
@@ -420,7 +420,7 @@ if (FULL) {
   await digBox(b2, new Vec3(sites.torch.x, sites.torch.y + 1, sites.torch.z), { want: 3 })
   await sleep(4000)
   b2.quit()
-  const sick = await s.cmd('wr scan world', /Nothing can be approved|Proposed run|Nothing to reset/, 120_000)
+  const sick = await s.cmd('rewild scan world', /Nothing can be approved|Proposed run|Nothing to reset/, 120_000)
   check('tracker can\'t save: scan refuses to propose and says why', /Nothing can be approved[^\n]*tracking data couldn't be saved/.test(sick), sick.slice(-200))
   chmodSync(path.join(worldsDir, uid), 0o755)
   await s.stop()
@@ -431,9 +431,9 @@ if (FULL) {
   await s.start()
   check('generator changed: a warning names the change and a sample of chunks', /the world generator changed \([^)]*datapack[^)]*\)\. Resets there are stopped.*Sample of affected chunks: -?\d+, -?\d+/.test(s.log),
     (s.log.match(/the world generator changed[^\n]*/) || [''])[0].slice(0, 220))
-  const gen = await s.cmd('wr scan world', /Nothing can be approved|Proposed run|Nothing to reset/, 120_000)
+  const gen = await s.cmd('rewild scan world', /Nothing can be approved|Proposed run|Nothing to reset/, 120_000)
   check('generator changed: nothing can be approved', /Nothing can be approved[^\n]*generator changed/.test(gen))
-  const app = await s.cmd(`wr approve ${capId}`, /approved|Not approved/, 60_000)
+  const app = await s.cmd(`rewild approve ${capId}`, /approved|Not approved/, 60_000)
   check('generator changed: an older proposed run can\'t be approved', /Not approved/.test(app))
 
   // Other plugins still work after runs.
@@ -470,14 +470,29 @@ b3.quit()
 await ps.stop()
 const { copyFileSync } = await import('node:fs')
 copyFileSync(JAR, path.join(played, 'plugins', path.basename(JAR)))
-mkdirSync(path.join(played, 'plugins/WildernessRegen'), { recursive: true })
-writeFileSync(path.join(played, 'plugins/WildernessRegen/config.yml'), testConfig({ claims: 'none' }))
+mkdirSync(path.join(played, 'plugins/Rewild'), { recursive: true })
+writeFileSync(path.join(played, 'plugins/Rewild/config.yml'), testConfig({ claims: 'none' }))
 await ps.start()
-const pScan = await ps.cmd('wr scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
+const pScan = await ps.cmd('rewild scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
 check('fresh install on a played world: nothing is proposed', /Nothing to reset/.test(pScan), `dug ${playedDug} before install; ` + pScan.split('\n').filter(l => /Scanned|Nothing|Proposed/.test(l)).join(' ').slice(0, 200))
-const pWhy = await ps.cmd(`wr why world ${px >> 4} ${pz >> 4}`, /Chunk -?\d+, -?\d+: .*/)
+const pWhy = await ps.cmd(`rewild why world ${px >> 4} ${pz >> 4}`, /Chunk -?\d+, -?\d+: .*/)
 check('fresh install on a played world: the mined chunk is unknown', /unknown/.test(pWhy))
 await ps.stop()
+
+console.log('\n## Upgrade from WildernessRegen')
+{
+  const { renameSync, readdirSync } = await import('node:fs')
+  const now = path.join(played, 'plugins/Rewild'), old = path.join(played, 'plugins/WildernessRegen')
+  const before = readdirSync(now).sort().join(',')
+  renameSync(now, old)
+  await ps.start()
+  check('plugins/WildernessRegen is moved to plugins/Rewild on first start', existsSync(path.join(now, 'config.yml')) && !existsSync(old) && readdirSync(now).sort().join(',') === before, readdirSync(now).sort().join(','))
+  check('the log says what was moved', /Moved plugins\/WildernessRegen to plugins\/Rewild/.test(ps.log))
+  const oldWhy = await ps.cmd(`wr why world ${px >> 4} ${pz >> 4}`, /Chunk -?\d+, -?\d+: .*/)
+  check('the old command /wr still works for one release', /unknown/.test(oldWhy))
+  check('and /wr logs that it\'s the old name', /old names for \/rewild/.test(ps.log))
+  await ps.stop()
+}
 ps.remove()
 
 process.exitCode = report(path.join(REPO, `build/acceptance-${VERSION}.json`)) ? 1 : 0

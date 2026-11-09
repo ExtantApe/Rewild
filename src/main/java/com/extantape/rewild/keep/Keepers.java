@@ -154,10 +154,10 @@ public final class Keepers {
                 String[] corners = loc.split(":");
                 if (corners.length < 2) throw new IllegalArgumentException("portal " + name + " has location " + loc);
                 String[] a = corners[corners.length - 2].split(","), b = corners[corners.length - 1].split(",");
-                int ax = (int) Math.floor(Double.parseDouble(a[0])) >> 4, az = (int) Math.floor(Double.parseDouble(a[2])) >> 4;
-                int bx = (int) Math.floor(Double.parseDouble(b[0])) >> 4, bz = (int) Math.floor(Double.parseDouble(b[2])) >> 4;
-                for (int x = Math.min(ax, bx); x <= Math.max(ax, bx); x++) {
-                    for (int z = Math.min(az, bz); z <= Math.max(az, bz); z++) {
+                int x1 = (int) Math.floor(Double.parseDouble(a[0])) >> 4, z1 = (int) Math.floor(Double.parseDouble(a[2])) >> 4;
+                int x2 = (int) Math.floor(Double.parseDouble(b[0])) >> 4, z2 = (int) Math.floor(Double.parseDouble(b[2])) >> 4;
+                for (int x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) {
+                    for (int z = Math.min(z1, z2); z <= Math.max(z1, z2); z++) {
                         r.external.computeIfAbsent(ChunkRecord.key(x, z), k -> new ArrayList<>()).add("a Multiverse portal");
                     }
                 }

@@ -28,7 +28,7 @@ import java.util.Set;
 /** /rewild: admin-only, registered through Paper's command API. Players get no commands. */
 public final class RewildCommand implements BasicCommand {
     public static final String PERMISSION = "rewild.admin";
-    private static final List<String> SUBS = List.of("status", "why", "preview", "scan", "approve", "undo", "protect", "reload");
+    private static final List<String> SUBS = List.of("status", "why", "preview", "scan", "approve", "undo", "protect", "keep", "unkeep", "plugins", "reload");
     private final RewildPlugin plugin;
 
     public RewildCommand(RewildPlugin plugin) {
@@ -46,38 +46,14 @@ public final class RewildCommand implements BasicCommand {
                 .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(Component.text(hover + "\n" + command, NamedTextColor.GRAY)));
     }
 
-    /** The node from before the rename (2026-11-09). Honoured for one release (0.2.x), then removed. */
-    public static final String OLD_PERMISSION = "wildernessregen.admin";
-    private final java.util.Set<String> warnedOld = java.util.concurrent.ConcurrentHashMap.newKeySet();
-
-    /** True for admins. Accepts the old node too, for one release, and logs once per name that it should move. */
+    /** True for admins. */
     public boolean allowed(org.bukkit.permissions.Permissible who) {
-        if (who.hasPermission(PERMISSION)) return true;
-        if (!who.hasPermission(OLD_PERMISSION)) return false;
-        String name = who instanceof CommandSender cs ? cs.getName() : String.valueOf(who);
-        if (warnedOld.add(name))
-            plugin.getLogger().warning(name + " uses the old permission " + OLD_PERMISSION + ". It still works in 0.2.x but goes in the next release: grant " + PERMISSION + " instead.");
-        return true;
+        return who.hasPermission(PERMISSION);
     }
 
     @Override
     public boolean canUse(CommandSender sender) {
         return allowed(sender);
-    }
-
-    /** The same command under its old names, with a nudge each time it's used. */
-    public BasicCommand deprecated() {
-        RewildCommand self = this;
-        return new BasicCommand() {
-            @Override public void execute(CommandSourceStack source, String[] args) {
-                String line = "/wr and /wildernessregen are the old names for /rewild. They still work in 0.2.x but go in the next release.";
-                plugin.getLogger().warning(line);
-                if (!(source.getSender() instanceof org.bukkit.command.ConsoleCommandSender)) say(source.getSender(), NamedTextColor.YELLOW, line);
-                self.execute(source, args);
-            }
-            @Override public java.util.Collection<String> suggest(CommandSourceStack source, String[] args) { return self.suggest(source, args); }
-            @Override public boolean canUse(CommandSender sender) { return self.canUse(sender); }
-        };
     }
 
     @Override
@@ -100,12 +76,15 @@ public final class RewildCommand implements BasicCommand {
                 case "approve" -> approve(sender, args);
                 case "undo" -> undo(sender, args);
                 case "protect" -> protect(sender, args);
+                case "keep" -> keep(sender, args);
+                case "unkeep" -> unkeep(sender, args);
+                case "plugins" -> plugins(sender, args);
                 case "reload" -> {
                     List<String> errors = plugin.reload();
                     if (errors.isEmpty()) say(sender, NamedTextColor.GREEN, "Config reloaded. New thresholds apply to the next scan.");
                     else say(sender, NamedTextColor.RED, "Config reloaded with problems, so nothing will reset: " + String.join("; ", errors));
                 }
-                default -> say(sender, NamedTextColor.GRAY, "/rewild status | why [world] [x z] | preview [radius] | scan [world] | approve <run> | approve generator <world> | undo <run> | protect [radius] [note] | protect remove | protect list | reload");
+                default -> say(sender, NamedTextColor.GRAY, "/rewild status | why [world] [x z] | preview [radius] | scan [world] | approve <run> | approve generator <world> | undo <run> | protect [radius] [note] | protect remove | protect list | keep <world> <x y z> [<x y z>] [plugin:<Name>] [note] | keep list [world] [--json] | unkeep <id> | plugins [respect|ignore <Name>...] [ignore-rest] [--json] | reload");
             }
         } catch (IOException e) {
             say(sender, NamedTextColor.RED, "That failed: " + e.getMessage());
@@ -121,6 +100,9 @@ public final class RewildCommand implements BasicCommand {
         var cfg = plugin.tracking().config();
         say(sender, NamedTextColor.GOLD, "Rewild " + plugin.getPluginMeta().getVersion() + (cfg.dryRun ? " (dry run: nothing resets)" : ""));
         if (!cfg.healthy()) say(sender, NamedTextColor.RED, "Config problems, so nothing resets: " + String.join("; ", cfg.errors()));
+        String plugins = plugin.pluginsProblem();
+        if (plugins != null) sender.sendMessage(Component.text("Nothing resets yet: " + plugins + " ", NamedTextColor.YELLOW)
+                .append(button("Answer", "/rewild plugins", "List installed plugins and choose which to respect")));
         if (plugin.tracking().states().isEmpty()) say(sender, NamedTextColor.GRAY, "No world is enabled. Add one under worlds: in config.yml.");
         for (WorldState s : plugin.tracking().states()) {
             Map<Long, ChunkRecord> recs = s.store.snapshot();
@@ -198,8 +180,8 @@ public final class RewildCommand implements BasicCommand {
                 default -> NamedTextColor.GRAY;
             };
             String what = switch (v.kind()) {
-                case QUEUED -> "would reset";
-                case UNDERGROUND -> "would reset below y=" + v.cutY();
+                case QUEUED -> "would rewild; kept blocks stay as they are";
+                case UNDERGROUND -> "would rewild below y=" + v.cutY() + " only";
                 case KEPT -> "kept";
                 case WAITING -> "waiting";
                 case UNKNOWN -> "unknown, never reset automatically";
@@ -248,7 +230,7 @@ public final class RewildCommand implements BasicCommand {
             int[] counts = new int[Scanner.Kind.values().length];
             for (Scanner.Verdict v : r.verdicts().values()) counts[v.kind().ordinal()]++;
             say(sender, NamedTextColor.GOLD, "Scanned " + w.getName() + " in " + r.elapsedMs() + " ms: " + counts[Scanner.Kind.QUEUED.ordinal()]
-                    + " to reset, " + counts[Scanner.Kind.UNDERGROUND.ordinal()] + " to reset below ground, "
+                    + " to rewild, " + counts[Scanner.Kind.UNDERGROUND.ordinal()] + " to rewild below ground, "
                     + counts[Scanner.Kind.KEPT.ordinal()] + " damaged but kept, " + counts[Scanner.Kind.WAITING.ordinal()] + " waiting.");
             if (r.problem() != null) {
                 say(sender, NamedTextColor.RED, "Nothing can be approved in this world right now: " + r.problem());
@@ -332,6 +314,172 @@ public final class RewildCommand implements BasicCommand {
         plugin.getLogger().info(sender.getName() + " ran /rewild undo " + run.id + "; it is now " + run.state());
     }
 
+    // ---- keep, unkeep, plugins ----
+
+    /** "plugin:Name" in the arguments, or the admin owner. Removes it from the list. */
+    private static String owner(List<String> words) {
+        for (int i = 0; i < words.size(); i++) {
+            if (words.get(i).toLowerCase(Locale.ROOT).startsWith("plugin:")) {
+                String name = words.remove(i).substring(7);
+                return name.isBlank() ? null : name;
+            }
+        }
+        return com.extantape.rewild.keep.CommandKeeps.ADMIN;
+    }
+
+    /** Parses "world x y z [x y z]" from the front of the list, removing what it used. Null if it doesn't fit. */
+    private static com.extantape.rewild.keep.KeepPlan.Area box(List<String> w, String note) {
+        if (w.size() < 4 || Bukkit.getWorld(w.get(0)) == null) return null;
+        int[] n = new int[6];
+        int count = 0;
+        for (int i = 1; i < Math.min(w.size(), 7); i++) {
+            try {
+                n[i - 1] = Integer.parseInt(w.get(i));
+                count++;
+            } catch (NumberFormatException e) {
+                break;
+            }
+        }
+        if (count != 3 && count != 6) return null;
+        String world = w.get(0);
+        for (int i = 0; i <= count; i++) w.remove(0);
+        if (count == 3) return new com.extantape.rewild.keep.KeepPlan.Area(world, n[0], n[1], n[2], n[0], n[1], n[2], note);
+        return new com.extantape.rewild.keep.KeepPlan.Area(world, n[0], n[1], n[2], n[3], n[4], n[5], note);
+    }
+
+    private void keep(CommandSender sender, String[] args) throws IOException {
+        var keeps = plugin.tracking().commandKeeps();
+        List<String> words = new ArrayList<>(List.of(args).subList(1, args.length));
+        boolean json = words.remove("--json");
+        if (!words.isEmpty() && words.get(0).equalsIgnoreCase("list")) {
+            String world = words.size() > 1 ? words.get(1) : null;
+            List<com.extantape.rewild.keep.CommandKeeps.Entry> list = keeps.all().stream()
+                    .filter(e -> world == null || e.area().world().equals(world)).toList();
+            if (json) {
+                StringBuilder sb = new StringBuilder("[");
+                for (var e : list) {
+                    var a = e.area();
+                    if (sb.length() > 1) sb.append(',');
+                    sb.append("{\"id\":").append(e.id()).append(",\"owner\":").append(Json.str(e.owner()))
+                            .append(",\"counts\":").append(e.byAdmin() || plugin.tracking().respect().respected(e.owner()))
+                            .append(",\"world\":").append(Json.str(a.world())).append(",\"min\":[").append(a.minX()).append(',')
+                            .append(a.minY()).append(',').append(a.minZ()).append("],\"max\":[").append(a.maxX()).append(',')
+                            .append(a.maxY()).append(',').append(a.maxZ()).append("],\"note\":").append(Json.str(a.reason())).append('}');
+                }
+                sender.sendMessage(Component.text(sb.append(']').toString()));
+                return;
+            }
+            if (list.isEmpty()) say(sender, NamedTextColor.GRAY, "Nothing is kept with /rewild keep" + (world == null ? "" : " in " + world) + ".");
+            for (var e : list) {
+                var a = e.area();
+                boolean counts = e.byAdmin() || plugin.tracking().respect().respected(e.owner());
+                say(sender, counts ? NamedTextColor.GRAY : NamedTextColor.DARK_GRAY, "#" + e.id() + " " + a.world() + " " + a.minX() + " "
+                        + a.minY() + " " + a.minZ() + " to " + a.maxX() + " " + a.maxY() + " " + a.maxZ() + ", by " + e.owner()
+                        + (a.reason().isBlank() ? "" : ": " + a.reason()) + (counts ? "" : " (not counted: " + e.owner() + " isn't respected)"));
+            }
+            return;
+        }
+        String owner = owner(words);
+        if (owner == null) {
+            say(sender, NamedTextColor.RED, "plugin: needs a plugin name, such as plugin:Homesteader.");
+            return;
+        }
+        List<String> rest = new ArrayList<>(words);
+        com.extantape.rewild.keep.KeepPlan.Area a = box(rest, "");
+        if (a == null) {
+            say(sender, NamedTextColor.RED, "Usage: /rewild keep <world> <x> <y> <z> [<x2> <y2> <z2>] [plugin:<Name>] [note]. "
+                    + "The blocks stay exactly as they are when the land around them rewilds.");
+            return;
+        }
+        a = new com.extantape.rewild.keep.KeepPlan.Area(a.world(), a.minX(), a.minY(), a.minZ(), a.maxX(), a.maxY(), a.maxZ(), String.join(" ", rest));
+        var e = keeps.add(owner, a);
+        boolean counts = e.byAdmin() || plugin.tracking().respect().respected(owner);
+        say(sender, counts ? NamedTextColor.GREEN : NamedTextColor.YELLOW, "Kept #" + e.id() + ": " + a.volume() + " block(s) in " + a.world()
+                + (counts ? ". They stay as they are when the land around them rewilds."
+                : ". Saved, but it doesn't count until " + owner + " is respected (/rewild plugins)."));
+        plugin.getLogger().info(sender.getName() + " kept #" + e.id() + " for " + owner + " in " + a.world());
+    }
+
+    private void unkeep(CommandSender sender, String[] args) throws IOException {
+        var keeps = plugin.tracking().commandKeeps();
+        List<String> words = new ArrayList<>(List.of(args).subList(1, args.length));
+        if (words.size() == 1) {
+            try {
+                var e = keeps.remove(Integer.parseInt(words.get(0).replace("#", "")));
+                say(sender, e == null ? NamedTextColor.RED : NamedTextColor.GOLD, e == null ? "No keep #" + words.get(0) + "." : "Removed keep #" + e.id() + ".");
+                return;
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        String owner = owner(words);
+        com.extantape.rewild.keep.KeepPlan.Area a = owner == null ? null : box(words, "");
+        if (a == null) {
+            say(sender, NamedTextColor.RED, "Usage: /rewild unkeep <id>, or /rewild unkeep <world> <x> <y> <z> [<x2> <y2> <z2>] [plugin:<Name>]");
+            return;
+        }
+        int n = keeps.removeExact(owner, a.world(), a.minX(), a.minY(), a.minZ(), a.maxX(), a.maxY(), a.maxZ());
+        say(sender, NamedTextColor.GOLD, n == 0 ? "No keep by " + owner + " has exactly those corners." : "Removed " + n + " keep(s) by " + owner + ".");
+    }
+
+    private void plugins(CommandSender sender, String[] args) throws IOException {
+        var respect = plugin.tracking().respect();
+        List<String> words = new ArrayList<>(List.of(args).subList(1, args.length));
+        boolean json = words.remove("--json");
+        List<String> installed = new ArrayList<>();
+        for (org.bukkit.plugin.Plugin p : Bukkit.getPluginManager().getPlugins()) if (!p.getName().equals(plugin.getName())) installed.add(p.getName());
+        installed.sort(String.CASE_INSENSITIVE_ORDER);
+        if (!words.isEmpty()) {
+            String verb = words.remove(0).toLowerCase(Locale.ROOT);
+            List<String> names = new ArrayList<>();
+            if (verb.equals("ignore-rest")) {
+                names.addAll(respect.unanswered(installed));
+                verb = "ignore";
+            } else {
+                for (String w : words) {
+                    String match = installed.stream().filter(n -> n.equalsIgnoreCase(w)).findFirst().orElse(null);
+                    if (match == null) {
+                        say(sender, NamedTextColor.RED, w + " isn't installed. /rewild plugins lists what is.");
+                        return;
+                    }
+                    names.add(match);
+                }
+            }
+            if (!verb.equals("respect") && !verb.equals("ignore") || names.isEmpty()) {
+                say(sender, NamedTextColor.RED, "Usage: /rewild plugins respect <Name>..., /rewild plugins ignore <Name>..., or /rewild plugins ignore-rest");
+                return;
+            }
+            for (String n : names) respect.setRespected(n, verb.equals("respect"));
+            respect.save();
+            say(sender, NamedTextColor.GREEN, (verb.equals("respect") ? "Respected: " : "Ignored: ") + String.join(", ", names) + ".");
+            plugin.getLogger().info(sender.getName() + " set " + String.join(", ", names) + " to " + verb);
+        }
+        java.util.Set<String> providers = new java.util.HashSet<>();
+        for (var reg : Bukkit.getServicesManager().getRegistrations(com.extantape.rewild.api.KeepProvider.class)) providers.add(reg.getPlugin().getName());
+        if (json) {
+            StringBuilder sb = new StringBuilder("[");
+            for (String n : installed) {
+                if (sb.length() > 1) sb.append(',');
+                sb.append("{\"plugin\":").append(Json.str(n)).append(",\"answer\":").append(Json.str(respect.respected(n) ? "respect"
+                        : respect.ignored(n) ? "ignore" : "none")).append(",\"reportsKeeps\":").append(providers.contains(n)).append('}');
+            }
+            sender.sendMessage(Component.text(sb.append(']').toString()));
+            return;
+        }
+        List<String> open = respect.unanswered(installed);
+        say(sender, NamedTextColor.GOLD, "Which plugins does Rewild respect? Everything a respected plugin reports stays when the land around it rewilds."
+                + (open.isEmpty() ? "" : " Nothing resets until every plugin has an answer."));
+        for (String n : installed) {
+            String state = respect.respected(n) ? "respected" : respect.ignored(n) ? "ignored" : "no answer yet";
+            NamedTextColor c = respect.respected(n) ? NamedTextColor.GREEN : respect.ignored(n) ? NamedTextColor.GRAY : NamedTextColor.YELLOW;
+            Component line = Component.text(n + ": " + state + (providers.contains(n) ? ", reports what it keeps" : ""), c);
+            if (!respect.respected(n)) line = line.append(Component.text(" ")).append(button("Respect", "/rewild plugins respect " + n, "Keep everything " + n + " reports"));
+            if (!respect.ignored(n)) line = line.append(Component.text(" ")).append(button("Ignore", "/rewild plugins ignore " + n, "Don't listen to " + n));
+            sender.sendMessage(line);
+        }
+        if (!open.isEmpty()) sender.sendMessage(Component.text("Ignore the " + open.size() + " without an answer: ", NamedTextColor.GRAY)
+                .append(button("Ignore the rest", "/rewild plugins ignore-rest", "Answer ignore for every plugin without an answer")));
+    }
+
     private void protect(CommandSender sender, String[] args) throws IOException {
         if (!(sender instanceof Player p)) {
             say(sender, NamedTextColor.RED, "Run /rewild protect in game.");
@@ -400,6 +548,16 @@ public final class RewildCommand implements BasicCommand {
             return plugin.tracking().states().stream().map(s -> s.name).filter(n -> n.startsWith(args[2])).toList();
         }
         if (args.length == 2 && sub.equals("protect")) return List.of("remove", "list", "0", "1", "2");
+        if (args.length == 2 && sub.equals("plugins")) return List.of("respect", "ignore", "ignore-rest", "--json").stream().filter(s -> s.startsWith(args[1])).toList();
+        if (args.length == 3 && sub.equals("plugins") && (args[1].equalsIgnoreCase("respect") || args[1].equalsIgnoreCase("ignore"))) {
+            return java.util.Arrays.stream(Bukkit.getPluginManager().getPlugins()).map(org.bukkit.plugin.Plugin::getName)
+                    .filter(n -> !n.equals(plugin.getName()) && n.toLowerCase(Locale.ROOT).startsWith(args[2].toLowerCase(Locale.ROOT))).toList();
+        }
+        if (args.length == 2 && sub.equals("keep")) {
+            List<String> out = new ArrayList<>(List.of("list"));
+            Bukkit.getWorlds().forEach(w -> out.add(w.getName()));
+            return out.stream().filter(s -> s.startsWith(args[1])).toList();
+        }
         return List.of();
     }
 }

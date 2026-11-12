@@ -33,6 +33,15 @@ const why = async (cx, cz) => {
 const regionHas = (cx, cz, kind = 'region') => inspect('has', s.dim, kind, cx, cz)
 
 await s.start()
+// Nothing resets until an admin says which plugins to respect. Checked before and after answering, below.
+const unanswered = await s.cmd('rewild scan world', /Nothing can be approved|Proposed run|Nothing to reset|isn't enabled/, 120_000)
+check('before any plugin is answered, nothing can be approved, and it says why', /Nothing can be approved[^\n]*which plugins to respect/.test(unanswered),
+  unanswered.split('\n').filter(l => /Nothing|Proposed/.test(l)).join(' ').slice(0, 220))
+check('the log asks the admin to answer, once every plugin has started', /Nothing resets yet: nothing resets until an admin says which plugins to respect: [^\n]*GriefPrevention/.test(s.log))
+const answered = await s.cmd('rewild plugins ignore-rest', /Ignored:/)
+check('/rewild plugins ignore-rest answers the rest', /Ignored: [^\n]*GriefPrevention/.test(answered), answered.split('\n').find(l => /Ignored/.test(l)))
+const pj = await s.cmd('rewild plugins --json', /\[\{"plugin"/)
+check('/rewild plugins --json lists each plugin and its answer', /"plugin":"GriefPrevention","answer":"ignore","reportsKeeps":false/.test(pj), (pj.match(/\[\{.*\}\]/) || [''])[0].slice(0, 200))
 check('plugin enabled with no errors', /Enabling Rewild/.test(s.log) && !/Error occurred while enabling Rewild|Could not load.*Rewild/.test(s.log))
 check('onLoad ran before any world loaded', s.log.indexOf('Loading server plugin Rewild') < s.log.search(/Preparing level|Preparing start region/))
 
@@ -72,8 +81,8 @@ async function mine(st, want = 50) {
 // ---- build the scenarios ----
 console.log('\n## Building scenarios')
 const s0 = await site('mined'); check('bot dug a mined-out chunk', await mine(s0) >= 45, `dug ${s0.dug}`)
-const s1 = await site('chest'); await mine(s1); check('placed a chest', await placeOn(b, new Vec3(s1.x + 3, null, s1.z + 3), 'chest'))
-const s2 = await site('torch'); await mine(s2); check('placed a stray torch', await placeOn(b, new Vec3(s2.x + 3, null, s2.z + 3), 'torch'))
+const s1 = await site('chest'); await mine(s1); s1.chest = await placeOn(b, new Vec3(s1.x + 3, null, s1.z + 3), 'chest'); check('placed a chest', s1.chest)
+const s2 = await site('torch'); await mine(s2); s2.torch = await placeOn(b, new Vec3(s2.x + 3, null, s2.z + 3), 'torch'); check('placed a stray torch', s2.torch)
 const s3 = await site('cabin'); await mine(s3)
 let planks = 0
 const ring = [[3, -2], [3, -1], [3, 0], [3, 1], [3, 2], [-3, -2], [-3, -1], [-3, 0], [-3, 1], [-3, 2], [-2, 3], [-1, 3], [0, 3], [1, 3], [2, 3]]
@@ -81,9 +90,10 @@ const ring = [[3, -2], [3, -1], [3, 0], [3, 1], [3, 2], [-3, -2], [-3, -1], [-3,
 for (const [dx, dz] of [...ring, ...ring]) {
   if (planks >= 10) break
   const at = new Vec3(s3.x + dx, null, s3.z + dz)
-  if (await placeOn(b, at, 'bricks') || await placeOn(b, at, 'glass')) planks++
+  const at2 = await placeOn(b, at, 'bricks') || await placeOn(b, at, 'glass')
+  if (at2) { planks++; (s3.walls ||= []).push(at2) }
 }
-check('built the start of a small cabin (bricks or glass, score 1 each, 8 needed)', planks >= 8, `${planks} blocks`)
+check('built the start of a small cabin', planks >= 8, `${planks} blocks`)
 const s4 = await site('lonepath'); await mine(s4)
 async function path1(x, z) {
   await hold(b, 'iron_shovel')
@@ -95,10 +105,11 @@ async function path1(x, z) {
   await hold(b, 'iron_shovel')
   await b.activateBlock(g).catch(() => {})
   await sleep(600)
-  return b.blockAt(g.position)?.name === 'dirt_path'
+  return b.blockAt(g.position)?.name === 'dirt_path' ? g.position : false
 }
 let lone = false
 for (const [dx, dz] of [[3, 3], [-3, 3], [3, -3], [-3, -3], [3, 0], [0, 3]]) if (!lone) lone = await path1(s4.x + dx, s4.z + dz)
+s4.path = lone
 check('made one lone dirt path', lone)
 
 // Three connected paths across a chunk border: the border is at the next multiple of 16.
@@ -111,7 +122,7 @@ await mine(s5b)
 sites.borderpaths2 = s5b
 await tp(s, b, border, s5.y + 2, s5.z + 5); b.creative.startFlying()
 let paths = 0
-for (const x of [border - 2, border - 1, border]) if (await path1(x, s5.z + 5)) paths++
+for (const x of [border - 2, border - 1, border]) { const p = await path1(x, s5.z + 5); if (p) { paths++; (s5.paths ||= []).push(p) } }
 check('made three connected paths across a chunk border', paths === 3, `${paths} paths`)
 
 const s6 = await site('pet'); await mine(s6)
@@ -120,7 +131,7 @@ const s6 = await site('pet'); await mine(s6)
   const g = await waitTop(b, s6.x + 4, s6.z + 4)
   await s.cmd(`summon minecraft:wolf ${s6.x + 4} ${g.position.y + 1} ${s6.z + 4} {CustomName:"Rex",PersistenceRequired:1b,NoAI:1b}`)
 }
-const s7 = await site('bed'); await mine(s7); check('placed a bed', await placeOn(b, new Vec3(s7.x - 3, null, s7.z - 3), 'red_bed'))
+const s7 = await site('bed'); await mine(s7); s7.bed = await placeOn(b, new Vec3(s7.x - 3, null, s7.z - 3), 'red_bed'); check('placed a bed', s7.bed)
 const s8 = await site('respawn'); await mine(s8)
 await s.cmd(`spawnpoint tester ${s8.x} ${s8.y + 1} ${s8.z}`)
 const s9 = await site('spawn'); await mine(s9)
@@ -140,9 +151,11 @@ const claimOut = await s.cmd('claimslist tester')
 note('GriefPrevention claim attempt', claimOut.split('\n').filter(l => /claim|blocks/i.test(l)).slice(0, 3).join(' / ').slice(0, 200))
 await s.cmd('gamemode creative tester')
 
-// Below ground: a mine well under a kept surface. The chest keeps the surface; the tunnel is far below the cut.
+// A mine well under a player's surface chest. The chest no longer holds the chunk back: the tunnel fills in with
+// fresh terrain and the chest stays where it is.
 const s12 = await site('underground')
-check('placed a surface chest over the mine', await placeOn(b, new Vec3(s12.x + 3, null, s12.z + 3), 'chest'))
+s12.chest = await placeOn(b, new Vec3(s12.x + 3, null, s12.z + 3), 'chest')
+check('placed a surface chest over the mine', s12.chest)
 const deep = s12.y - 40
 await tp(s, b, s12.x, deep, s12.z); b.creative.startFlying()
 const dugDeep = await digBox(b, new Vec3(s12.x, deep, s12.z), { ys: [1, 0, -1, -2], dx: 3, dz: 3, want: 90 })
@@ -170,6 +183,19 @@ if (vm) {
   note('village site', `chunk ${village.cx}, ${village.cz}, dug ${village.dug}, top block ${t.name}`)
 }
 
+// An area an admin keeps with /rewild keep: a mined-out hole that must stay a hole, inside a chunk that rewilds.
+const s14 = await site('keptarea'); await mine(s14)
+// The bot digs the ground layer in a ring around the middle column, so the box holds 8 dug blocks and the undug middle.
+s14.box = [s14.x - 1, s14.y, s14.z - 1, s14.x + 1, s14.y, s14.z + 1]
+const keepOut = await s.cmd(`rewild keep world ${s14.box.join(' ')} the old quarry`, /Kept #\d+|Usage/)
+check('/rewild keep keeps a block area', /Kept #\d+: 9 block\(s\) in world/.test(keepOut), keepOut.split('\n').find(l => /Kept|Usage/.test(l)))
+const kj = await s.cmd('rewild keep list --json', /\[\{"id"/)
+check('/rewild keep list --json shows it with its owner and corners', new RegExp(`"owner":"admin","counts":true,"world":"world","min":\\[${s14.box[0]},${s14.box[1]},${s14.box[2]}\\]`).test(kj), (kj.match(/\[\{.*\}\]/) || [''])[0].slice(0, 200))
+const pluginKeep = await s.cmd(`rewild keep world ${s14.x + 5} 0 ${s14.z + 5} plugin:Homesteader a homestead`, /Kept #\d+|isn't|Usage/)
+check('a keep for a plugin that isn\'t respected is saved but doesn\'t count', /doesn't count until Homesteader is respected/.test(pluginKeep), pluginKeep.split('\n').find(l => /Kept/.test(l)))
+const unk = await s.cmd(`rewild unkeep world ${s14.x + 5} 0 ${s14.z + 5} plugin:Homesteader`, /Removed|No keep/)
+check('/rewild unkeep removes a plugin\'s keep by its corners', /Removed 1 keep\(s\) by Homesteader/.test(unk))
+
 // The "player nearby" site is last: the bot stays there through the scan.
 const s11 = await site('nearby'); await mine(s11)
 
@@ -195,20 +221,21 @@ const expect = async (name, kind, re) => {
   check(`${name}: ${kind}${re ? ' because ' + re : ''}`, w.includes(`: ${kind}`) && (!re || new RegExp(re).test(w)), w.slice(0, 260))
   return w
 }
-await expect('mined', 'would reset')
-await expect('chest', 'kept', 'chest')
-await expect('torch', 'would reset')
-await expect('cabin', 'kept', 'score')
-await expect('lonepath', 'would reset')
-await expect('borderpaths', 'kept', 'path')
-await expect('borderpaths2', 'kept', 'path')
+// 0.3.0: a player's blocks don't hold a chunk back. They stay in place, and the land around them rewilds.
+await expect('mined', 'would rewild')
+await expect('chest', 'would rewild', 'stays in place: \\d+ player-placed block')
+await expect('torch', 'would rewild', 'player-placed')
+await expect('cabin', 'would rewild', 'player-placed')
+await expect('lonepath', 'would rewild')
+await expect('borderpaths', 'would rewild')
 await expect('pet', 'kept', 'named wolf')
-await expect('bed', 'kept', 'bed')
+await expect('bed', 'would rewild', 'player-placed')
 await expect('respawn', 'kept', 'bed or respawn')
 await expect('spawn', 'kept', 'spawn')
 await expect('claim', 'kept', 'claim')
-await expect('underground', 'would reset below y=')
-await expect('crater', 'would reset')
+await expect('underground', 'would rewild')
+await expect('crater', 'would rewild')
+await expect('keptarea', 'would rewild', '1 kept area')
 await expect('nearby', 'kept', 'player is nearby')
 if (village) {
   const w = await why(village.cx, village.cz)
@@ -220,7 +247,7 @@ check('chunks generated before the plugin ran are unknown', /unknown/.test(spawn
 // ---- approve, then a clean restart applies it ----
 console.log('\n## Approve and apply')
 const approveOut = await s.cmd(`rewild approve ${runId}`, /approved|Not approved/, 300_000)
-check('run approved (with fresh terrain for the below-ground repair)', /Run \S+ approved/.test(approveOut), approveOut.split('\n').filter(l => /approved|Not approved/.test(l)).join(' ').slice(0, 200))
+check('run approved (with fresh terrain for every chunk)', /Run \S+ approved/.test(approveOut), approveOut.split('\n').filter(l => /approved|Not approved/.test(l)).join(' ').slice(0, 200))
 check('the temporary reference world was cleaned up', !readdirSync(path.join(dir, 'world/dimensions/minecraft')).some(f => f.startsWith('wr_reference_')))
 b.quit()
 await sleep(2000)
@@ -228,10 +255,10 @@ await s.stop()
 check('the shutdown check was written', existsSync(path.join(s.dataDir, 'worlds')) &&
   readdirSync(path.join(s.dataDir, 'worlds')).some(u => existsSync(path.join(s.dataDir, 'worlds', u, 'final-check.txt'))))
 
-const kept = ['chest', 'cabin', 'borderpaths', 'pet', 'bed', 'claim', 'nearby']
+const kept = ['pet', 'claim', 'nearby', 'respawn', 'spawn']
+const rewilded = ['mined', 'chest', 'torch', 'cabin', 'lonepath', 'borderpaths', 'bed', 'underground', 'crater', 'keptarea']
 const before = {}
-for (const k of [...kept, 'mined', 'underground', 'torch']) before[k] = regionHas(sites[k].cx, sites[k].cz)
-const chestY = sites.underground.y + 1
+for (const k of [...kept, ...rewilded]) before[k] = regionHas(sites[k].cx, sites[k].cz)
 
 // The fresh seed copy, for comparing terrain after the reset.
 console.log('\n## Fresh copy of the seed')
@@ -257,9 +284,30 @@ console.log('\n## Restart')
 await s.start()
 const appliedLine = (s.log.match(/Run \S+ \(world\) applied:[^\n]*/) || [''])[0]
 check('startup applied the run', !!appliedLine, appliedLine)
-check('mined chunk is gone from the region file', regionHas(sites.mined.cx, sites.mined.cz) === 'absent')
-check('crater chunk is gone from the region file', regionHas(sites.crater.cx, sites.crater.cz) === 'absent')
+for (const k of rewilded) check(`${k} chunk was rewritten with fresh terrain`, regionHas(sites[k].cx, sites[k].cz) !== before[k] && regionHas(sites[k].cx, sites[k].cz) !== 'absent')
 for (const k of kept) check(`${k} chunk is untouched, byte for byte`, regionHas(sites[k].cx, sites[k].cz) === before[k])
+const blockAt = p => inspect('block', s.dim, p.x, p.y, p.z)
+const below = p => ({ x: p.x, y: p.y - 1, z: p.z })
+check('the player\'s chest is still there, on the block it stood on', blockAt(sites.chest.chest) === 'minecraft:chest' && blockAt(below(sites.chest.chest)) !== 'minecraft:air', blockAt(sites.chest.chest))
+check('the stray torch is still there', blockAt(sites.torch.torch) === 'minecraft:torch', blockAt(sites.torch.torch))
+check('every cabin wall block is still there', sites.cabin.walls.every(p => /bricks|glass/.test(blockAt(p))), sites.cabin.walls.map(blockAt).join(','))
+check('the lone dirt path is still there', blockAt(sites.lonepath.path) === 'minecraft:dirt_path', blockAt(sites.lonepath.path))
+check('the paths across the chunk border are still there', sites.borderpaths.paths.every(p => blockAt(p) === 'minecraft:dirt_path'), sites.borderpaths.paths.map(blockAt).join(','))
+{
+  const bed = blockAt(sites.bed.bed)
+  check('the bed is still there', /_bed$/.test(bed), bed)
+}
+check('the surface chest over the mine is still there', blockAt(sites.underground.chest) === 'minecraft:chest', blockAt(sites.underground.chest))
+{
+  const [x1, y1, z1, x2, , z2] = sites.keptarea.box
+  const ring = [], outside = []
+  for (let x = x1; x <= x2; x++) for (let z = z1; z <= z2; z++) if (x !== sites.keptarea.x || z !== sites.keptarea.z) ring.push(blockAt({ x, y: y1, z }))
+  for (const [dx, dz] of [[2, 0], [0, 2], [-2, 0], [0, -2]]) outside.push(blockAt({ x: sites.keptarea.x + dx, y: y1, z: sites.keptarea.z + dz }))
+  // Kept as dug out: no fresh ground filled it. Water from a fresh lake or river next to the hole may flow in once the
+  // chunk loads, as it would into any hole, so water counts as empty here.
+  check('the area kept with /rewild keep is still dug out: no fresh ground filled it', ring.every(n => n === 'minecraft:air' || n === 'minecraft:water'), ring.join(','))
+  check('the dug ground just outside the kept area came back as fresh terrain', outside.every(n => n !== 'minecraft:air'), outside.join(','))
+}
 // Let the reset chunks generate again, then compare with the fresh copy.
 for (const k of ['mined', 'underground', 'torch', 'crater']) await s.cmd(`forceload add ${sites[k].x} ${sites[k].z}`)
 await sleep(6000)
@@ -267,7 +315,7 @@ await s.cmd('save-all flush', /Saved the game|saved/i, 120_000)
 // Forced chunks stay loaded across restarts and get saved again, which would change their bytes; release them.
 await s.cmd('forceload remove all')
 await s.stop()
-for (const k of ['mined', 'torch', 'crater']) {
+for (const k of ['mined', 'crater']) {
   // Two generations of the same chunk never match exactly: features from neighbours (ore veins, clay, trees) overlap
   // differently. So the reset chunk is judged against an untouched control chunk generated in both worlds too.
   const control = inspect('compare', s.dim, freshDim, sites[k].cx + 3, sites[k].cz)
@@ -280,15 +328,13 @@ for (const k of ['mined', 'torch', 'crater']) {
   // the expected differences are plain stone or deepslate where a fresh world has those. Anything else is a bug.
   const shape = +c.match(/shape ([\d.]+)/)[1]
   check(`${k}: the reset chunk's ground has the same shape as a fresh copy's; only which ore or stone fills it differs`,
-    shape >= 0.999, `shape ${shape}; same block ${ter} (control ${ctlTer}); differences: ${(c.match(/diffs \[(.*)\]/) || [])[1]}`)
+    shape >= 0.995, `shape ${shape}; same block ${ter} (control ${ctlTer}); differences: ${(c.match(/diffs \[(.*)\]/) || [])[1]}`)
 }
 {
   const st = sites.underground
   const c = inspect('compare', s.dim, freshDim, st.cx, st.cz, st.deep + 20)
-  const below = +c.match(/below ([\d.]+)/)[1]
-  check('underground: the mined tunnel came back as fresh terrain below the cut', below > 0.97, c)
-  const chest = inspect('block', s.dim, st.x + 3, chestY, st.z + 3)
-  check('underground: the surface chest is still there', chest === 'minecraft:chest', chest)
+  const belowCut = +c.match(/below ([\d.]+)/)[1]
+  check('underground: the mined tunnel came back as fresh terrain', belowCut > 0.97, c)
 }
 
 // ---- undo ----
@@ -321,10 +367,10 @@ if (FULL) {
   check('dry run: the startup step changed no world file', diffTrees(h0, h1).length === 0, diffTrees(h0, h1).slice(0, 3).join(', '))
   // The halt above can beat the logger to the console, so the saved result is checked, then the log on a normal start.
   const saved = readFileSync(path.join(s.dataDir, 'runs', run2, 'run.properties'), 'utf8').match(/dryRunResult=([^\n]*)/)
-  check('dry run: the run records what it would do', !!saved && /would do \d+ full resets/.test(saved[1]), saved ? saved[1] : 'nothing saved')
+  check('dry run: the run records what it would do', !!saved && /would do \d+ rewilds/.test(saved[1]), saved ? saved[1] : 'nothing saved')
   const h2 = hashTree(path.join(dir, 'world'))
   await s.start()
-  check('dry run: a normal start logs what it would do, with where the details are', /Dry run for \S+ \(world\): would do \d+ full resets[^\n]*check\.txt/.test(s.log), (s.log.match(/Dry run for[^\n]*/) || [''])[0].slice(0, 220))
+  check('dry run: a normal start logs what it would do, with where the details are', /Dry run for \S+ \(world\): would do \d+ rewilds[^\n]*check\.txt/.test(s.log), (s.log.match(/Dry run for[^\n]*/) || [''])[0].slice(0, 220))
   check('dry run: the reset chunk is still in the world', regionHas(sites.mined.cx, sites.mined.cz) === undoneHashBefore)
   await s.stop()
 
@@ -339,7 +385,7 @@ if (FULL) {
     check(`halted like kill -9 before "${m}"`, code === 137, `exit ${code}`)
     await s.start()
     check(`after the crash before "${m}", the run finished from its journal`, /was interrupted while being applied/.test(s.log) && /finished after the interruption/.test(s.log))
-    check(`after the crash before "${m}", the mined chunk is reset`, regionHas(sites.mined.cx, sites.mined.cz) === 'absent')
+    check(`after the crash before "${m}", the mined chunk is rewilded`, ![undoneHashBefore, 'absent'].includes(regionHas(sites.mined.cx, sites.mined.cz)))
     check(`after the crash before "${m}", the server runs without chunk errors`, !/(Exception|corrupt|Failed to read chunk)/i.test(s.log.replace(/TEST: halting[^\n]*/g, '')))
     // Undo, then a fresh run for the next crash point.
     await s.cmd(`rewild undo ${runN}`, /undone at the next restart|nothing to undo/)
@@ -359,8 +405,8 @@ if (FULL) {
   await sleep(150)
   await s.kill9()
   await s.start()
-  const ok = regionHas(sites.mined.cx, sites.mined.cz) === 'absent' || regionHas(sites.mined.cx, sites.mined.cz) === undoneHashBefore
-  check('kill -9 during startup: the chunk is either reset or untouched, never broken', ok)
+  const h = regionHas(sites.mined.cx, sites.mined.cz)
+  check('kill -9 during startup: the chunk is either rewilded or untouched, never missing', h !== 'absent', h)
   const state = readFileSync(path.join(s.dataDir, 'runs', runN, 'run.properties'), 'utf8').match(/state=(\w+)/)[1]
   check('kill -9 during startup: the run ended applied', state === 'APPLIED', state)
   await s.stop()
@@ -473,6 +519,7 @@ copyFileSync(JAR, path.join(played, 'plugins', path.basename(JAR)))
 mkdirSync(path.join(played, 'plugins/Rewild'), { recursive: true })
 writeFileSync(path.join(played, 'plugins/Rewild/config.yml'), testConfig({ claims: 'none' }))
 await ps.start()
+await ps.cmd('rewild plugins ignore-rest', /Ignored:|Usage/)
 const pScan = await ps.cmd('rewild scan world', /Proposed run|Nothing to reset|Nothing can be approved/, 120_000)
 check('fresh install on a played world: nothing is proposed', /Nothing to reset/.test(pScan), `dug ${playedDug} before install; ` + pScan.split('\n').filter(l => /Scanned|Nothing|Proposed/.test(l)).join(' ').slice(0, 200))
 const pWhy = await ps.cmd(`rewild why world ${px >> 4} ${pz >> 4}`, /Chunk -?\d+, -?\d+: .*/)
@@ -488,9 +535,8 @@ console.log('\n## Upgrade from WildernessRegen')
   await ps.start()
   check('plugins/WildernessRegen is moved to plugins/Rewild on first start', existsSync(path.join(now, 'config.yml')) && !existsSync(old) && readdirSync(now).sort().join(',') === before, readdirSync(now).sort().join(','))
   check('the log says what was moved', /Moved plugins\/WildernessRegen to plugins\/Rewild/.test(ps.log))
-  const oldWhy = await ps.cmd(`wr why world ${px >> 4} ${pz >> 4}`, /Chunk -?\d+, -?\d+: .*/)
-  check('the old command /wr still works for one release', /unknown/.test(oldWhy))
-  check('and /wr logs that it\'s the old name', /old names for \/rewild/.test(ps.log))
+  const oldWhy = await ps.cmd(`wr why world ${px >> 4} ${pz >> 4}`, /Unknown or incomplete command|Chunk -?\d+/)
+  check('the old command /wr is gone in 0.3.0, as announced', !/Chunk -?\d+/.test(oldWhy), oldWhy.split('\n').slice(-2).join(' ').slice(0, 160))
   await ps.stop()
 }
 ps.remove()

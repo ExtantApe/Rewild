@@ -2,7 +2,7 @@ name: Rewild
 version: '${version}'
 main: com.extantape.rewild.RewildPlugin
 api-version: '26.1'
-description: Quietly resets abandoned, damaged chunks so survival worlds stay wild, and keeps anything that looks intentional.
+description: Rewilds abandoned, mined-out land on Paper servers back to fresh terrain, keeping every player-placed block, path and protected place exactly where it is.
 website: https://github.com/ExtantApe/Rewild
 dependencies:
   server:
@@ -31,6 +31,3 @@ permissions:
   rewild.admin:
     description: Use /rewild. Players get no commands.
     default: op
-  wildernessregen.admin:
-    description: The old name for rewild.admin, from before the rename. Still works in 0.2.x and is removed in the next release.
-    default: false

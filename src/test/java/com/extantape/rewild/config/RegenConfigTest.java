@@ -41,10 +41,25 @@ class RegenConfigTest {
         YamlConfiguration y = shipped();
         y.set("run.max-chunks", "lots");
         y.set("defaults.idle.days-without-changes", -1);
-        y.set("worlds.w.keep.intent-score", "high");
+        y.set("worlds.w.keep.buffer-chunks", "high");
         RegenConfig c = new RegenConfig(y);
         assertFalse(c.healthy());
         assertEquals(3, c.errors().size(), String.valueOf(c.errors()));
+    }
+
+    @Test
+    void keepBlocksDefaultToDirtPathsAndOldIntentSettingsAreRetired() {
+        YamlConfiguration y = shipped();
+        RegenConfig c = new RegenConfig(y);
+        assertEquals(java.util.List.of("DIRT_PATH"), c.keepBlocks);
+        assertTrue(c.retired.isEmpty(), String.valueOf(c.retired));
+        y.set("keep-blocks", java.util.List.of("oak_fence", "*LANTERN"));
+        y.set("intent.keep", java.util.List.of("CHEST"));
+        y.set("defaults.keep.intent-score", 8);
+        c = new RegenConfig(y);
+        assertTrue(c.healthy(), String.valueOf(c.errors()));
+        assertEquals(java.util.List.of("OAK_FENCE", "*LANTERN"), c.keepBlocks);
+        assertEquals(java.util.List.of("intent", "defaults.keep.intent-score"), c.retired);
     }
 
     @Test

@@ -52,6 +52,26 @@ public final class Tracking {
         return config;
     }
 
+    private com.extantape.rewild.keep.Respect respect;
+    private com.extantape.rewild.keep.CommandKeeps commandKeeps;
+
+    /** Which plugins an admin chose to respect. Read from keep-plugins.yml. */
+    public synchronized com.extantape.rewild.keep.Respect respect() {
+        if (respect == null) respect = new com.extantape.rewild.keep.Respect(plugin.getDataFolder());
+        return respect;
+    }
+
+    /** Areas kept with /rewild keep. Read from keeps.txt. */
+    public synchronized com.extantape.rewild.keep.CommandKeeps commandKeeps() {
+        if (commandKeeps == null) commandKeeps = new com.extantape.rewild.keep.CommandKeeps(plugin.getDataFolder().toPath());
+        return commandKeeps;
+    }
+
+    /** Reads everything outside the tracker that can keep a chunk or a block, for one world. Main thread only. */
+    public com.extantape.rewild.keep.Keepers.Result keepers(World w) {
+        return new com.extantape.rewild.keep.Keepers(config.claimPlugin, respect(), commandKeeps()).read(w);
+    }
+
     public void setConfig(RegenConfig config) {
         this.config = config;
     }
@@ -119,6 +139,9 @@ public final class Tracking {
             Path packs = Fingerprint.findDatapacks(Bukkit.getWorlds().get(0).getWorldFolder().toPath(), Bukkit.getWorldContainer().toPath());
             meta.put("datapacks", packs == null ? "" : packs.toString());
             if (store.meta("trackingSince") == null) meta.put("trackingSince", Long.toString(System.currentTimeMillis()));
+            // From 0.3.0 every player-placed block is recorded. Chunks born before then may hold builds the tracker
+            // never saw, so they stay unknown.
+            if (store.meta("everyBlockSince") == null) meta.put("everyBlockSince", Long.toString(System.currentTimeMillis()));
             store.setMeta(meta);
             checkGap(w, s);
             checkFingerprint(w, s, packs);
@@ -242,7 +265,7 @@ public final class Tracking {
             if (s == null) continue;
             // An admin looking around in spectator or creative mode doesn't count as a visitor, so inspecting an area
             // before approving a run doesn't hold it back.
-            if ((p.hasPermission("rewild.admin") || p.hasPermission("wildernessregen.admin")) && (p.getGameMode() == org.bukkit.GameMode.SPECTATOR
+            if (p.hasPermission("rewild.admin") && (p.getGameMode() == org.bukkit.GameMode.SPECTATOR
                     || p.getGameMode() == org.bukkit.GameMode.CREATIVE)) continue;
             int r = config.world(s.name).visitRadiusChunks();
             int cx = p.getLocation().getBlockX() >> 4, cz = p.getLocation().getBlockZ() >> 4;

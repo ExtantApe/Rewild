@@ -1,7 +1,6 @@
 package com.extantape.rewild.track;
 
 import com.extantape.rewild.config.RegenConfig;
-import com.extantape.rewild.scan.IntentRules;
 import com.extantape.rewild.store.ChunkRecord;
 import com.extantape.rewild.store.WorldState;
 import org.bukkit.Bukkit;
@@ -40,6 +39,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -55,17 +55,11 @@ import java.util.function.Consumer;
 public final class TrackerListener implements Listener {
     private final Plugin plugin;
     private final Tracking tracking;
-    private IntentRules intent;
     private final Map<UUID, Map<Material, Integer>> openContainers = new HashMap<>();
 
-    public TrackerListener(Plugin plugin, Tracking tracking, IntentRules intent) {
+    public TrackerListener(Plugin plugin, Tracking tracking) {
         this.plugin = plugin;
         this.tracking = tracking;
-        this.intent = intent;
-    }
-
-    public void setIntent(IntentRules intent) {
-        this.intent = intent;
     }
 
     private void change(Block b, Consumer<ChunkRecord> extra) {
@@ -128,13 +122,21 @@ public final class TrackerListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent e) {
-        Block b = e.getBlockPlaced();
-        String m = b.getType().name();
-        long p = pos(b);
-        boolean keep = intent.worthRecording(m);
-        change(b, r -> {
-            if (keep) r.placed.put(p, m);
-            else r.placed.remove(p);
+        // Every block a player places stays when the land around it rewilds. A bed or door places two.
+        List<Block> blocks = new ArrayList<>();
+        blocks.add(e.getBlockPlaced());
+        if (e instanceof org.bukkit.event.block.BlockMultiPlaceEvent multi) {
+            for (BlockState st : multi.getReplacedBlockStates()) blocks.add(st.getBlock());
+        }
+        change(e.getBlockPlaced(), null);
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            // A tick later, so a door's or bed's other half exists; record whatever is really there.
+            for (Block b : blocks) {
+                if (b.getType().isAir()) continue;
+                String m = b.getType().name();
+                long p = pos(b);
+                change(b, r -> r.placed.put(p, m));
+            }
         });
     }
 
@@ -168,8 +170,7 @@ public final class TrackerListener implements Listener {
             if (after == before) return;
             String m = after.name();
             long p = pos(b);
-            boolean keep = after == Material.DIRT_PATH || after == Material.FARMLAND || intent.worthRecording(m);
-            change(b, r -> { if (keep) r.placed.put(p, m); });
+            change(b, r -> r.placed.put(p, m));
         });
     }
 
@@ -209,8 +210,7 @@ public final class TrackerListener implements Listener {
         Block b = entity.getLocation().getBlock();
         String m = entity.getType().name();
         long p = pos(b);
-        boolean keep = intent.worthRecording(m);
-        change(b, r -> { if (keep) r.placed.put(p, m); });
+        change(b, r -> r.placed.put(p, m));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -218,7 +218,6 @@ public final class TrackerListener implements Listener {
         for (BlockState st : e.getBlocks()) {
             Block b = st.getBlock();
             String m = st.getType().name();
-            if (!intent.worthRecording(m)) continue;
             long p = pos(b);
             change(b, r -> r.placed.put(p, m));
         }

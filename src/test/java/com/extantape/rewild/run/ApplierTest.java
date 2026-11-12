@@ -72,7 +72,7 @@ class ApplierTest {
         TestChunks.writeChunk(dim, "poi", 3, 3, poi);
         Fingerprint fp = new Fingerprint(VERSION, 42, "NORMAL", "vanilla", "vanilla", "none");
         s.setMeta(Map.of("dimension", dim.toString(), "serverRoot", root.toString(), "environment", "NORMAL", "minY", "-64",
-                "epoch", "1", "fingerprint", fp.full(), "datapacks", "", "lastHeartbeat", Long.toString(now - 1000), "name", "testworld"));
+                "epoch", "1", "fingerprint", fp.full(), "datapacks", "", "lastHeartbeat", Long.toString(now - 1000), "name", "testworld", "everyBlockSince", "0"));
         s.compact();
         s.close();
         writeSnapshot(now);
@@ -97,6 +97,8 @@ class ApplierTest {
         run.set("version", VERSION);
         run.set("epoch", "1");
         run.writeChunks(entries);
+        // Approval makes fresh terrain for every chunk; granite here, so it's easy to tell from the real stone.
+        for (Run.Entry e : entries) writeReference(run, e.x(), e.z(), "minecraft:granite", e.x() * 31L + e.z());
         run.setState(Run.State.APPROVED, null);
         return run;
     }
@@ -135,7 +137,7 @@ class ApplierTest {
         assertEquals(before, worldHashes());
         run = reload(run);
         assertEquals(Run.State.APPROVED, run.state());
-        assertTrue(run.get("dryRunResult").startsWith("would do 2 full resets"), run.get("dryRunResult"));
+        assertTrue(run.get("dryRunResult").startsWith("would do 2 rewilds"), run.get("dryRunResult"));
     }
 
     @Test
@@ -147,17 +149,20 @@ class ApplierTest {
         run = reload(run);
         assertEquals(Run.State.APPLIED, run.state(), run.get("note"));
         RegionFile after = region("region", 3, 3);
-        assertNull(after.get(RegionFile.index(3, 3)));
-        assertNull(after.get(RegionFile.index(3, 4)));
-        assertNull(region("entities", 3, 3).get(RegionFile.index(3, 3)));
-        assertNull(region("poi", 3, 3).get(RegionFile.index(3, 3)));
+        assertEquals("minecraft:granite", fill(after.readNbt(RegionFile.index(3, 3))));
+        assertEquals("minecraft:granite", fill(after.readNbt(RegionFile.index(3, 4))));
+        // The wild zombie wasn't kept; nothing of the old points of interest is left for the server to trust.
+        assertEquals(0, region("entities", 3, 3).readNbt(RegionFile.index(3, 3)).getList("Entities").items().size());
+        assertEquals(0, region("poi", 3, 3).readNbt(RegionFile.index(3, 3)).getCompound("Sections").size());
         // Neighbours are untouched, byte for byte.
         assertArrayEquals(before.get(RegionFile.index(2, 3)).data(), after.get(RegionFile.index(2, 3)).data());
         // The trash mirrors the world's layout.
         Path trash = data.resolve("trash").resolve(run.get("trashDate")).resolve(run.id).resolve("world/dimensions/minecraft/overworld/region/r.0.0.mca");
         assertTrue(Files.exists(trash));
         WorldStore s = WorldStore.open(data.resolve("worlds").resolve(WORLD.toString()));
-        assertFalse(s.get(3, 3).known);
+        // Rewild knows exactly what's in the chunk now, so it stays known, with its damage cleared.
+        assertTrue(s.get(3, 3).known);
+        assertEquals(0, s.get(3, 3).removed());
         assertTrue(s.get(3, 3).lastReset > 0);
         s.close();
 
@@ -319,8 +324,8 @@ class ApplierTest {
         applier(false).runStartup();
         run = reload(run);
         assertEquals(Run.State.APPLIED, run.state());
-        assertNull(region("region", 3, 3).get(RegionFile.index(3, 3)));
-        assertNotNull(region("region", 3, 4).get(RegionFile.index(3, 4)));
+        assertEquals("minecraft:granite", fill(region("region", 3, 3).readNbt(RegionFile.index(3, 3))));
+        assertEquals("minecraft:stone", fill(region("region", 3, 4).readNbt(RegionFile.index(3, 4))));
         assertTrue(Files.readString(run.dir.resolve("check.txt")).contains("3, 4: skipped"));
     }
 
@@ -373,6 +378,14 @@ class ApplierTest {
         assertEquals(Run.State.FAILED, run.state());
         assertTrue(run.get("note").contains("bedrock"), run.get("note"));
         assertEquals(before, worldHashes());
+    }
+
+    /** The block filling a test chunk's middle, at y=0. */
+    static String fill(Nbt.Compound chunk) {
+        for (Nbt.Compound sec : chunk.getList("sections").compounds()) {
+            if (sec.getInt("Y", 99) == 0) return sec.getCompound("block_states").getList("palette").compounds().get(0).getString("Name");
+        }
+        return null;
     }
 
     void writeReference(Run run, int x, int z, String fill, long seed) throws Exception {

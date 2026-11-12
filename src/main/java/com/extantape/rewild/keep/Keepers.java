@@ -37,12 +37,18 @@ public final class Keepers {
         public final Set<Long> respawnChunks = new HashSet<>();
         public final Map<Long, List<String>> external = new HashMap<>();
         public String externalProblem;
+        /** Block areas from respected plugins and /rewild keep, kept in place while the land around them rewilds. */
+        public final List<KeepPlan.Area> areas = new ArrayList<>();
     }
 
     private final String claimPlugin;
+    private final Respect respect;
+    private final CommandKeeps commandKeeps;
 
-    public Keepers(String claimPlugin) {
+    public Keepers(String claimPlugin, Respect respect, CommandKeeps commandKeeps) {
         this.claimPlugin = claimPlugin;
+        this.respect = respect;
+        this.commandKeeps = commandKeeps;
     }
 
     public Result read(World w) {
@@ -50,6 +56,7 @@ public final class Keepers {
         readClaims(w, r);
         readRespawns(w, r);
         readProviders(w, r);
+        readCommandKeeps(w, r);
         readMultiversePortals(w, r);
         return r;
     }
@@ -109,27 +116,69 @@ public final class Keepers {
         r.respawnChunks.add(ChunkRecord.key(l.getBlockX() >> 4, l.getBlockZ() >> 4));
     }
 
-    private static void readProviders(World w, Result r) {
+    private void readProviders(World w, Result r) {
+        List<String> installed = new ArrayList<>();
+        for (Plugin p : Bukkit.getPluginManager().getPlugins()) installed.add(p.getName());
+        String blocked = respect.blocking(installed, name -> {
+            Plugin p = Bukkit.getPluginManager().getPlugin(name);
+            return p != null && p.isEnabled();
+        });
+        if (blocked != null) r.externalProblem = blocked;
         Set<String> reporting = new HashSet<>();
         for (RegisteredServiceProvider<KeepProvider> reg : Bukkit.getServicesManager().getRegistrations(KeepProvider.class)) {
             String owner = reg.getPlugin().getName();
+            if (!respect.respected(owner)) continue;
             reporting.add(owner);
             try {
                 Collection<KeepProvider.Keep> keeps = reg.getProvider().keeps(w);
-                if (keeps == null) throw new IllegalStateException("returned null");
+                if (keeps == null) throw new IllegalStateException("keeps returned null");
                 for (KeepProvider.Keep k : keeps) {
                     r.external.computeIfAbsent(ChunkRecord.key(k.chunkX(), k.chunkZ()), kk -> new ArrayList<>())
                             .add(k.reason() == null || k.reason().isBlank() ? "kept by " + owner : k.reason() + " (" + owner + ")");
                 }
+                Collection<KeepProvider.Area> areas = areasOf(reg.getProvider(), w);
+                if (areas == null) throw new IllegalStateException("areas returned null");
+                for (KeepProvider.Area a : areas) {
+                    String why = a.reason() == null || a.reason().isBlank() ? "kept by " + owner : a.reason() + " (" + owner + ")";
+                    r.areas.add(new KeepPlan.Area(w.getName(), a.minX(), a.minY(), a.minZ(), a.maxX(), a.maxY(), a.maxZ(), why));
+                }
             } catch (RuntimeException | LinkageError e) {
-                r.externalProblem = owner + " couldn't say which chunks to keep (" + e + ")";
+                r.externalProblem = owner + " couldn't say what to keep (" + e + ")";
             }
         }
         for (String expected : EXPECTED_PROVIDERS) {
             Plugin p = Bukkit.getPluginManager().getPlugin(expected);
-            if (p != null && p.isEnabled() && !reporting.contains(p.getName())) {
+            if (p != null && p.isEnabled() && respect.respected(p.getName()) && !reporting.contains(p.getName())) {
                 r.externalProblem = expected + " is running but doesn't report what it needs kept, so nothing resets";
             }
+        }
+    }
+
+    /**
+     * A provider's block areas. One written before 0.3.0 may answer through a proxy that refuses methods it doesn't
+     * know (LanternGraves 0.1.2 does); it reports whole chunks only, so a refusal here means it has no areas. Any other
+     * failure still stops resets.
+     */
+    static Collection<KeepProvider.Area> areasOf(KeepProvider p, World w) {
+        try {
+            return p.areas(w);
+        } catch (UnsupportedOperationException e) {
+            return List.of();
+        }
+    }
+
+    /** Areas kept with /rewild keep: an admin's always count, a plugin's only while that plugin is respected. */
+    private void readCommandKeeps(World w, Result r) {
+        if (commandKeeps.problem() != null) {
+            r.externalProblem = commandKeeps.problem();
+            return;
+        }
+        for (CommandKeeps.Entry e : commandKeeps.all()) {
+            if (!e.area().world().equals(w.getName())) continue;
+            if (!e.byAdmin() && !respect.respected(e.owner())) continue;
+            String note = e.area().reason().isBlank() ? "" : ": " + e.area().reason();
+            r.areas.add(new KeepPlan.Area(w.getName(), e.area().minX(), e.area().minY(), e.area().minZ(), e.area().maxX(),
+                    e.area().maxY(), e.area().maxZ(), "kept with /rewild keep by " + e.owner() + note + " (#" + e.id() + ")"));
         }
     }
 

@@ -95,7 +95,7 @@ public final class RunService {
         if (System.currentTimeMillis() - run.getLong("createdAt") > tracking.config().approvalExpiresDays * Scanner.DAY) {
             return "the scan is older than " + tracking.config().approvalExpiresDays + " days; scan again";
         }
-        Keepers.Result k = new Keepers(tracking.config().claimPlugin).read(w);
+        Keepers.Result k = tracking.keepers(w);
         if (k.claimsProblem != null) return "claims can't be read: " + k.claimsProblem;
         if (k.externalProblem != null) return k.externalProblem;
         for (Run other : all()) {
@@ -108,8 +108,9 @@ public final class RunService {
     }
 
     /**
-     * Approves a run. Below-ground repairs first need a freshly generated copy of each chunk, made in a temporary world
-     * with the same seed and generator, which is deleted afterwards.
+     * Approves a run. Every chunk first needs a freshly generated copy, made in a temporary world with the same seed and
+     * generator, which is deleted afterwards. At the restart, the run takes its terrain from that copy and keeps what's
+     * kept from the real chunk.
      */
     public CompletableFuture<String> approve(Run run, String by) {
         CompletableFuture<String> out = new CompletableFuture<>();
@@ -119,14 +120,14 @@ public final class RunService {
             return out;
         }
         World w = Bukkit.getWorld(java.util.UUID.fromString(run.get("world")));
-        List<Run.Entry> under;
+        List<Run.Entry> entries;
         try {
-            under = run.chunks().stream().filter(e -> !e.full()).toList();
+            entries = run.chunks();
         } catch (IOException e) {
             out.completeExceptionally(e);
             return out;
         }
-        CompletableFuture<List<String>> refs = under.isEmpty() ? CompletableFuture.completedFuture(List.of()) : buildReferences(run, w, under);
+        CompletableFuture<List<String>> refs = entries.isEmpty() ? CompletableFuture.completedFuture(List.of()) : buildReferences(run, w, entries);
         refs.whenComplete((dropped, err) -> {
             if (err != null) {
                 out.completeExceptionally(err);
@@ -141,7 +142,7 @@ public final class RunService {
                 String msg = "Run " + run.id + " approved. " + (tracking.config().dryRun
                         ? "dry-run is on, so the next restart only checks it and reports in the log."
                         : "It applies at the next restart, after a final check.");
-                if (!dropped.isEmpty()) msg += " Left out of the below-ground repairs: " + String.join("; ", dropped) + ".";
+                if (!dropped.isEmpty()) msg += " Left out, because fresh terrain for them couldn't be made: " + String.join("; ", dropped) + ".";
                 out.complete(msg);
             } catch (Exception e) {
                 out.completeExceptionally(e);
@@ -195,6 +196,15 @@ public final class RunService {
                             gz.write(Nbt.write(nbt));
                         }
                         RegionFile.writeFileAtomically(run.referenceFile(e.x(), e.z()), bytes.toByteArray());
+                        Path ents = refDim.resolve("entities").resolve(RegionFile.fileName(e.x(), e.z()));
+                        Nbt.Compound en = Files.exists(ents) ? RegionFile.load(ents).readNbt(RegionFile.index(e.x(), e.z())) : null;
+                        if (en != null) {
+                            java.io.ByteArrayOutputStream eb = new java.io.ByteArrayOutputStream();
+                            try (GZIPOutputStream gz = new GZIPOutputStream(eb)) {
+                                gz.write(Nbt.write(en));
+                            }
+                            RegionFile.writeFileAtomically(run.referenceEntitiesFile(e.x(), e.z()), eb.toByteArray());
+                        }
                     }
                     Bukkit.getScheduler().runTask(plugin, () -> {
                         cleanupReference(null, refFolder);
@@ -259,11 +269,12 @@ public final class RunService {
             if (w == null) continue;
             ContextSnapshot snap = new ContextSnapshot();
             try {
-                Keepers.Result k = new Keepers(tracking.config().claimPlugin).read(w);
+                Keepers.Result k = tracking.keepers(w);
                 snap.claimsProblem = k.claimsProblem;
                 snap.externalProblem = k.externalProblem;
                 snap.claims.addAll(k.claims);
                 snap.respawnChunks.addAll(k.respawnChunks);
+                snap.areas.addAll(k.areas);
                 k.external.forEach((key, reasons) -> {
                     for (String r : reasons) snap.external.add(new String[]{Integer.toString(ChunkRecord.keyX(key)), Integer.toString(ChunkRecord.keyZ(key)), r});
                 });

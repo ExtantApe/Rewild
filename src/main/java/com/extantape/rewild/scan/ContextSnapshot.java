@@ -29,6 +29,8 @@ public final class ContextSnapshot {
     public final List<int[]> claims = new ArrayList<>();
     public final List<Long> respawnChunks = new ArrayList<>();
     public final List<String[]> external = new ArrayList<>(); // x, z, reason
+    /** Block areas kept by admins and respected plugins: kept in place when the chunk around them rewilds. */
+    public final List<com.extantape.rewild.keep.KeepPlan.Area> areas = new ArrayList<>();
 
     public void write(Path dir) throws IOException {
         StringBuilder sb = new StringBuilder("# Written at shutdown for the startup check. Don't edit.\n");
@@ -40,6 +42,10 @@ public final class ContextSnapshot {
         for (int[] c : claims) sb.append("claim ").append(c[0]).append(' ').append(c[1]).append(' ').append(c[2]).append(' ').append(c[3]).append('\n');
         for (long r : respawnChunks) sb.append("respawn ").append(ChunkRecord.keyX(r)).append(' ').append(ChunkRecord.keyZ(r)).append('\n');
         for (String[] e : external) sb.append("external ").append(e[0]).append(' ').append(e[1]).append(' ').append(oneLine(e[2])).append('\n');
+        for (var a : areas) {
+            sb.append("area ").append(a.minX()).append(' ').append(a.minY()).append(' ').append(a.minZ()).append(' ')
+                    .append(a.maxX()).append(' ').append(a.maxY()).append(' ').append(a.maxZ()).append(' ').append(oneLine(a.reason())).append('\n');
+        }
         sb.append("end\n");
         RegionFile.writeFileAtomically(dir.resolve(FILE), sb.toString().getBytes(StandardCharsets.UTF_8));
     }
@@ -80,6 +86,12 @@ public final class ContextSnapshot {
                     String[] s = rest.split(" ", 3);
                     c.external.add(new String[]{s[0], s[1], s.length > 2 ? s[2] : "kept by another plugin"});
                 }
+                case "area" -> {
+                    String[] s = rest.split(" ", 7);
+                    c.areas.add(new com.extantape.rewild.keep.KeepPlan.Area(null, Integer.parseInt(s[0]), Integer.parseInt(s[1]),
+                            Integer.parseInt(s[2]), Integer.parseInt(s[3]), Integer.parseInt(s[4]), Integer.parseInt(s[5]),
+                            s.length > 6 ? s[6] : "kept"));
+                }
                 case "end" -> ended = true;
                 default -> throw new IOException(f + " has an unknown line: " + line);
             }
@@ -93,6 +105,7 @@ public final class ContextSnapshot {
         ctx.spawnZ = spawnZ;
         ctx.claims.addAll(claims);
         ctx.respawnChunks.addAll(respawnChunks);
+        ctx.areas.addAll(areas);
         for (String[] e : external) {
             long k = ChunkRecord.key(Integer.parseInt(e[0]), Integer.parseInt(e[1]));
             ctx.external.computeIfAbsent(k, kk -> new ArrayList<>()).add(e[2]);

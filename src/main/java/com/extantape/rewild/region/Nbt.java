@@ -169,6 +169,10 @@ public final class Nbt {
             case LIST -> {
                 NbtList l = (NbtList) o;
                 int t = l.items().isEmpty() ? l.elementType() : typeOf(l.items().get(0));
+                // Every item in an NBT list has one type. A mixed list would save as bytes the game can't read.
+                for (Object item : l.items()) {
+                    if (typeOf(item) != t) throw new IOException("an NBT list mixes types " + t + " and " + typeOf(item));
+                }
                 out.writeByte(t);
                 out.writeInt(l.items().size());
                 for (Object item : l.items()) writePayload(out, item, depth + 1);

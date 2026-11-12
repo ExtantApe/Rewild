@@ -53,14 +53,15 @@ public final class ScanService {
         ctx.minY = w.getMinHeight();
         ctx.maxChunks = cfg.maxChunks;
         ctx.minGroupSize = cfg.minGroupSize;
-        ctx.intent = IntentRules.from(cfg);
+        ctx.everyBlockSince = Long.parseLong(s.store.meta("everyBlockSince", Long.toString(Long.MAX_VALUE)));
         ctx.protectedAreas.addAll(s.store.protectedAreas());
         ctx.spawnX = w.getSpawnLocation().getBlockX() >> 4;
         ctx.spawnZ = w.getSpawnLocation().getBlockZ() >> 4;
-        Keepers.Result k = new Keepers(cfg.claimPlugin).read(w);
+        Keepers.Result k = tracking.keepers(w);
         ctx.claims.addAll(k.claims);
         ctx.respawnChunks.addAll(k.respawnChunks);
         k.external.forEach((key, reasons) -> ctx.external.computeIfAbsent(key, kk -> new ArrayList<>()).addAll(reasons));
+        ctx.areas.addAll(k.areas);
         for (Player p : w.getPlayers()) {
             ctx.playerChunks.add(ChunkRecord.key(p.getLocation().getBlockX() >> 4, p.getLocation().getBlockZ() >> 4));
         }

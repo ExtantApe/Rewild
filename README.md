@@ -168,7 +168,7 @@ If a respected provider throws, nothing in that world resets. If LanternGraves i
 - **The client side.** The bot speaks 1.21.11 and reaches 26.x through ViaVersion and ViaBackwards, so no real 26.x client was involved. How a rewilded area looks around kept builds, whether seams look natural, and whether `/rewild preview` is readable need a person in a real client.
 - **26.1.** 0.3.0 hasn't been run on 26.1.2.
 - **Scale.** Measured on a small test world, not a long-played one. Approval generates fresh terrain for every chunk in the run, up to 200, in a temporary world; how long that takes on a busy server isn't measured.
-- **Real plugins as providers.** LanternGraves 0.1.2 registers whole-chunk keeps but hasn't been run against 0.3.0. No other plugin reports block areas yet. Multiverse-Portals and the BlueMap layer weren't exercised.
+- **Real plugins as providers.** Only LanternGraves 0.1.2 was run for real (`test/lanterngraves.mjs`, 26.3: a grave kept its chunk and `/rewild why` named it, and a scan still proposed a run). No real plugin reports block areas yet. Multiverse-Portals and the BlueMap layer weren't exercised.
 - **Disk full** was simulated by making the trash folder unwritable (a unit test), not by filling a disk.
 
 ## Building

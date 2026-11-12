@@ -13,6 +13,7 @@ The redesign changes what a reset does, so every keep and safety promise was map
 | Areas kept with `/rewild keep` and by respected plugins stay exactly as they were, and the rest of the chunk rewilds | unit `anAreaKeepsEveryBlockInsideItEvenAir`; acceptance kept area; `keep.mjs` reported area |
 | **Nothing resets until every installed plugin has an answer**, a later plugin stops resets again, and a respected plugin that isn't running stops them | unit `nothingResetsUntilEveryInstalledPluginHasAnAnswer`, `aRespectedPluginThatIsntRunningStopsResets`, `aBrokenOrContradictoryFileStopsResets`; acceptance before answering |
 | An ignored plugin's reports don't count; a respected one's do | `keep.mjs` (both) |
+| A provider written before 0.3.0 still works: LanternGraves 0.1.2 answers through a proxy that refuses `areas()` | `test/lanterngraves.mjs` with the real 0.1.2 jar on 26.3 (found while writing K346: without the fix, Rewild reset nothing while LanternGraves ran) |
 | A plugin's `/rewild keep` doesn't count until it's respected; unkeep by exact corners | acceptance keep and unkeep |
 | Kept areas carry through the shutdown check, so the restart keeps the same blocks | unit `areasSurviveTheShutdownSnapshot` |
 | Chunks tracked by 0.2.x (partial placed-block records) stay unknown | unit `chunkBornBeforeEveryBlockWasRecordedIsUnknown` |

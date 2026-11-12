@@ -136,7 +136,7 @@ public final class Keepers {
                     r.external.computeIfAbsent(ChunkRecord.key(k.chunkX(), k.chunkZ()), kk -> new ArrayList<>())
                             .add(k.reason() == null || k.reason().isBlank() ? "kept by " + owner : k.reason() + " (" + owner + ")");
                 }
-                Collection<KeepProvider.Area> areas = reg.getProvider().areas(w);
+                Collection<KeepProvider.Area> areas = areasOf(reg.getProvider(), w);
                 if (areas == null) throw new IllegalStateException("areas returned null");
                 for (KeepProvider.Area a : areas) {
                     String why = a.reason() == null || a.reason().isBlank() ? "kept by " + owner : a.reason() + " (" + owner + ")";
@@ -151,6 +151,19 @@ public final class Keepers {
             if (p != null && p.isEnabled() && respect.respected(p.getName()) && !reporting.contains(p.getName())) {
                 r.externalProblem = expected + " is running but doesn't report what it needs kept, so nothing resets";
             }
+        }
+    }
+
+    /**
+     * A provider's block areas. One written before 0.3.0 may answer through a proxy that refuses methods it doesn't
+     * know (LanternGraves 0.1.2 does); it reports whole chunks only, so a refusal here means it has no areas. Any other
+     * failure still stops resets.
+     */
+    static Collection<KeepProvider.Area> areasOf(KeepProvider p, World w) {
+        try {
+            return p.areas(w);
+        } catch (UnsupportedOperationException e) {
+            return List.of();
         }
     }
 

@@ -148,6 +148,11 @@ public final class Run {
         return dir.resolve("reference").resolve(x + "_" + z + ".nbt");
     }
 
+    /** The fresh chunk's entities, such as a village's villagers. Missing if it had none. */
+    public Path referenceEntitiesFile(int x, int z) {
+        return dir.resolve("reference").resolve(x + "_" + z + ".entities.nbt");
+    }
+
     // ---- journal ----
 
     public List<String> journal() throws IOException {

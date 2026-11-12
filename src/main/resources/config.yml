@@ -1,7 +1,11 @@
 # Rewild settings.
 #
-# Nothing resets unless all of these hold: the world is enabled below, an admin has approved a run with
-# /rewild approve, and dry-run is false. While dry-run is true, an approved run is checked at the next restart and
+# A chunk that rewilds goes back to fresh terrain from the world's seed, except what's kept, which stays exactly as it
+# is: every block a player placed, containers players filled, the block types in keep-blocks, areas kept with
+# /rewild keep or by a respected plugin (/rewild plugins), and the blocks holding all of those up.
+#
+# Nothing resets unless all of these hold: the world is enabled below, every installed plugin has an answer in
+# /rewild plugins, an admin has approved a run with /rewild approve, and dry-run is false. While dry-run is true, an approved run is checked at the next restart and
 # reported in the log, and no world file changes.
 dry-run: true
 
@@ -47,17 +51,13 @@ defaults:
     # Days a chunk waits after it was reset before it can be reset again.
     days-since-last-reset: 30
   keep:
-    # Chunks around anything kept are kept too.
+    # Chunks around a chunk kept whole (a claim, spawn, a pet, an admin's /rewild protect) are kept too.
     buffer-chunks: 1
     # Chunks within this many chunks of a claim are kept.
     claim-buffer-chunks: 1
     spawn-radius-chunks: 8
     # Around every player's bed or respawn point.
     respawn-radius-chunks: 1
-    # Player-made dirt paths keep their chunk once this many are connected. Paths across a chunk border count for both.
-    path-min-connected: 3
-    # A chunk whose player-placed blocks add up to this score is kept. See "intent" below.
-    intent-score: 8
     # Chunks holding part of these structures are kept.
     structures: ["minecraft:stronghold"]
     # In the End, every chunk within this many blocks of 0,0 is kept, which covers the main island and exit portal.
@@ -70,47 +70,10 @@ defaults:
     # Player-removed blocks below the cut needed before it's worth repairing.
     min-removed-blocks: 40
 
-# Blocks that show a player meant something, when a player placed them. Natural ones don't count.
-# Patterns may use * as a wildcard. Anything not listed counts for nothing.
-intent:
-  # Any one of these, placed by a player, keeps its chunk.
-  keep: ["*_BED", "CHEST", "TRAPPED_CHEST", "BARREL", "*SHULKER_BOX", "*_SIGN", "*_HANGING_SIGN", "*_BANNER",
-         "LECTERN", "ITEM_FRAME", "GLOW_ITEM_FRAME", "ARMOR_STAND", "FLOWER_POT", "POTTED_*", "DECORATED_POT",
-         "ENCHANTING_TABLE", "BREWING_STAND", "ANVIL", "CHIPPED_ANVIL", "DAMAGED_ANVIL", "RESPAWN_ANCHOR", "BEACON",
-         "JUKEBOX", "*_DOOR", "NETHER_PORTAL", "OBSIDIAN", "RAIL", "POWERED_RAIL", "DETECTOR_RAIL", "ACTIVATOR_RAIL",
-         "REDSTONE_WIRE", "REPEATER", "COMPARATOR", "PISTON", "STICKY_PISTON", "OBSERVER", "DISPENSER", "DROPPER",
-         "HOPPER", "LEVER", "*_BUTTON", "*_PRESSURE_PLATE", "REDSTONE_TORCH", "REDSTONE_WALL_TORCH",
-         "DAYLIGHT_DETECTOR", "TARGET", "REDSTONE_LAMP", "NOTE_BLOCK", "TRIPWIRE_HOOK", "CRAFTER", "END_PORTAL_FRAME"]
-  # These add up. A small cabin passes intent-score; a stray torch doesn't.
-  score:
-    "*_PLANKS": 1
-    "*_STAIRS": 1
-    "*_SLAB": 1
-    "*_FENCE": 1
-    "*_FENCE_GATE": 1
-    "*_WALL": 1
-    "*GLASS": 1
-    "*GLASS_PANE": 1
-    "*_WOOL": 1
-    "BRICKS": 1
-    "*_BRICKS": 1
-    "TORCH": 1
-    "WALL_TORCH": 1
-    "SOUL_TORCH": 1
-    "SOUL_WALL_TORCH": 1
-    "LANTERN": 2
-    "SOUL_LANTERN": 2
-    "CAMPFIRE": 2
-    "SOUL_CAMPFIRE": 2
-    "FARMLAND": 1
-    "LADDER": 1
-    "FURNACE": 3
-    "BLAST_FURNACE": 3
-    "SMOKER": 3
-    "CRAFTING_TABLE": 3
-    "*_TRAPDOOR": 1
-    "*_LOG": 1
-    "STRIPPED_*": 1
+# Block types that stay wherever they are when the land around them rewilds, as well as everything players placed.
+# The blocks holding each one up stay too, so a kept lantern or fence never floats. Patterns may use * as a wildcard.
+# Natural ones stay too: listing OAK_FENCE keeps every oak fence, placed or not.
+keep-blocks: ["DIRT_PATH"]
 
 run:
   # Most chunks one run may reset.

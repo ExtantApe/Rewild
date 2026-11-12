@@ -283,7 +283,8 @@ export async function placeOn(b, pos, name) {
   })
   await sleep(300)
   const placed = b.blockAt(pos.offset(0, 1, 0))
-  return placed && placed.name === name
+  // Where it went, for checking it's still there after a rewild; false if it didn't place.
+  return placed && placed.name === name ? placed.position : false
 }
 
 export { Vec3 }

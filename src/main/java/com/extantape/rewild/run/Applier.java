@@ -2,11 +2,13 @@ package com.extantape.rewild.run;
 
 import com.extantape.rewild.config.RegenConfig;
 import com.extantape.rewild.region.ChunkFacts;
+import com.extantape.rewild.keep.KeepPlan;
+import com.extantape.rewild.region.KeepMask;
+import com.extantape.rewild.region.Merge;
 import com.extantape.rewild.region.Nbt;
 import com.extantape.rewild.region.RegionFile;
 import com.extantape.rewild.region.Underground;
 import com.extantape.rewild.scan.ContextSnapshot;
-import com.extantape.rewild.scan.IntentRules;
 import com.extantape.rewild.scan.Scanner;
 import com.extantape.rewild.store.ChunkRecord;
 import com.extantape.rewild.store.Fingerprint;
@@ -152,7 +154,7 @@ public final class Applier {
         ctx.minY = Integer.parseInt(store.meta("minY", "-64"));
         ctx.maxChunks = Integer.MAX_VALUE;
         ctx.protectedAreas.addAll(store.protectedAreas());
-        ctx.intent = IntentRules.from(config);
+        ctx.everyBlockSince = Long.parseLong(store.meta("everyBlockSince", Long.toString(Long.MAX_VALUE)));
         snap.fill(ctx);
 
         List<Run.Entry> proposed = run.chunks();
@@ -172,24 +174,27 @@ public final class Applier {
         for (Run.Entry e : proposed) {
             Scanner.Verdict v = scanner.evaluate(e.x(), e.z());
             String decision;
-            if (e.full() && v.kind() == Scanner.Kind.QUEUED) {
+            if (e.full() && v.kind() == Scanner.Kind.QUEUED && Files.exists(run.referenceFile(e.x(), e.z()))) {
                 plan.add(e);
                 full++;
-                decision = "reset";
-            } else if (!e.full() && v.kind() == Scanner.Kind.UNDERGROUND && Files.exists(run.referenceFile(e.x(), e.z()))) {
-                plan.add(new Run.Entry(e.x(), e.z(), Math.min(e.cutY(), v.cutY())));
+                decision = "rewild";
+            } else if (!e.full() && (v.kind() == Scanner.Kind.UNDERGROUND || v.kind() == Scanner.Kind.QUEUED)
+                    && Files.exists(run.referenceFile(e.x(), e.z()))) {
+                // A chunk that could now rewild whole still only gets the repair that was approved.
+                int cut = v.kind() == Scanner.Kind.UNDERGROUND ? Math.min(e.cutY(), v.cutY()) : e.cutY();
+                plan.add(new Run.Entry(e.x(), e.z(), cut));
                 under++;
-                decision = "reset below y=" + Math.min(e.cutY(), v.cutY());
+                decision = "reset below y=" + cut;
             } else {
                 skipped++;
                 decision = "skipped: " + (v.kind() == Scanner.Kind.UNDERGROUND || v.kind() == Scanner.Kind.QUEUED
-                        ? "approved as a different kind of reset, or its reference terrain is missing" : String.join("; ", v.reasons()));
+                        ? "approved as a different kind of reset, or its fresh terrain is missing" : String.join("; ", v.reasons()));
             }
             report.append(e.x()).append(", ").append(e.z()).append(": ").append(decision)
                     .append("   (blocks ").append(e.x() * 16).append(", ").append(e.z() * 16).append(")\n");
         }
         RegionFile.writeFileAtomically(run.dir.resolve("check.txt"), report.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        String summary = full + " full resets and " + under + " below-ground repairs; " + skipped + " skipped (see check.txt)";
+        String summary = full + " rewilds and " + under + " below-ground repairs; " + skipped + " skipped (see check.txt)";
 
         if (config.dryRun) {
             run.set("dryRunAt", Long.toString(now));
@@ -278,7 +283,10 @@ public final class Applier {
         Path serverRoot = Path.of(store.meta("serverRoot"));
         Path trash = trashDir(run, "");
         Map<Path, List<Run.Entry>> files = filesFor(dimension, plan);
+        Map<Long, KeepMask> masks = new java.util.HashMap<>();
+        ContextSnapshot snap = ContextSnapshot.read(store.dir());
         try {
+            if (snap == null) throw new IOException("the final check from shutdown is missing, so what to keep can't be worked out");
             if (!run.journalHas("backup-done")) {
                 step("backup");
                 backup(files, serverRoot, trash);
@@ -301,21 +309,20 @@ public final class Applier {
                     int idx = RegionFile.index(e.x(), e.z());
                     RegionFile.RawChunk raw = r.get(idx);
                     if (raw == null) continue;
-                    if (e.full()) {
-                        if (raw.isExternal()) removedExternal.add(RegionFile.externalPath(f.getKey(), idx));
-                        r.remove(idx);
-                    } else {
-                        Nbt.Compound nbt = r.readNbt(idx);
-                        Nbt.Compound fixed = switch (kind) {
-                            case "region" -> Underground.repairChunk(nbt, readReference(run, e), e.cutY(),
-                                    Integer.parseInt(store.meta("minY", "-64")));
-                            case "entities" -> Underground.repairEntities(nbt, e.cutY());
-                            default -> Underground.repairPoi(nbt, e.cutY());
-                        };
-                        RegionFile.RawChunk packed = RegionFile.compress(Nbt.write(fixed), raw.timestamp());
-                        if (raw.isExternal() && !packed.isExternal()) removedExternal.add(RegionFile.externalPath(f.getKey(), idx));
-                        r.put(idx, packed);
+                    KeepMask mask = masks.get(ChunkRecord.key(e.x(), e.z()));
+                    if (mask == null) {
+                        mask = maskFor(run, store, dimension, serverRoot, trash, e, snap);
+                        masks.put(ChunkRecord.key(e.x(), e.z()), mask);
                     }
+                    Nbt.Compound nbt = r.readNbt(idx);
+                    Nbt.Compound fixed = switch (kind) {
+                        case "region" -> Merge.chunk(nbt, readReference(run, e), mask);
+                        case "entities" -> Merge.entities(nbt, readReferenceEntities(run, e), mask, e.x(), e.z());
+                        default -> Merge.poi(nbt, mask);
+                    };
+                    RegionFile.RawChunk packed = RegionFile.compress(Nbt.write(fixed), raw.timestamp());
+                    if (raw.isExternal() && !packed.isExternal()) removedExternal.add(RegionFile.externalPath(f.getKey(), idx));
+                    r.put(idx, packed);
                 }
                 r.writeAtomically();
                 for (Path mcc : removedExternal) Files.deleteIfExists(mcc);
@@ -325,7 +332,7 @@ public final class Applier {
                 step("store");
                 long now = System.currentTimeMillis();
                 for (Run.Entry e : plan) {
-                    if (e.full()) store.edit(e.x(), e.z(), rec -> rec.clearForReset(now));
+                    if (e.full()) store.editIfPresent(e.x(), e.z(), rec -> rec.afterRewild(now));
                     else store.editIfPresent(e.x(), e.z(), rec -> rec.clearBelow(e.cutY(), now));
                 }
                 store.compact();
@@ -399,6 +406,32 @@ public final class Applier {
         if (failed.isEmpty()) return "rolled back " + restored + " files; the world is as it was";
         log.severe("Rollback of run " + run.id + " couldn't restore: " + failed + ". Copies are in " + trash);
         return "rollback couldn't restore " + failed.size() + " files; originals are in " + trash;
+    }
+
+    /**
+     * What stays in place in one chunk, worked out from the chunk as it was before the run (its trash copy), the
+     * tracker's record from before the run, and the areas in the shutdown check. The same inputs give the same mask,
+     * so a run resumed after a crash keeps exactly the same blocks.
+     */
+    private KeepMask maskFor(Run run, WorldStore store, Path dimension, Path serverRoot, Path trash, Run.Entry e,
+                             ContextSnapshot snap) throws IOException {
+        Path regionFile = dimension.resolve("region").resolve(RegionFile.fileName(e.x(), e.z()));
+        Path original = mirror(trash, serverRoot, regionFile);
+        RegionFile region = RegionFile.load(Files.exists(original) ? original : regionFile);
+        Nbt.Compound real = region.readNbt(RegionFile.index(e.x(), e.z()));
+        if (real == null) throw new IOException("chunk " + e.x() + ", " + e.z() + " has no saved data");
+        ChunkRecord rec = null;
+        for (ChunkRecord r : loadRecords(run.dir.resolve("records.bin"))) if (r.x == e.x() && r.z == e.z()) rec = r;
+        if (rec == null) rec = store.get(e.x(), e.z());
+        return KeepPlan.build(real, rec, snap.areas, config.keepBlocks, e.full() ? Integer.MIN_VALUE : e.cutY());
+    }
+
+    private static Nbt.Compound readReferenceEntities(Run run, Run.Entry e) throws IOException {
+        Path f = run.referenceEntitiesFile(e.x(), e.z());
+        if (!Files.exists(f)) return null;
+        try (var in = new GZIPInputStream(new BufferedInputStream(Files.newInputStream(f)))) {
+            return Nbt.read(in.readAllBytes());
+        }
     }
 
     private static Nbt.Compound readReference(Run run, Run.Entry e) throws IOException {

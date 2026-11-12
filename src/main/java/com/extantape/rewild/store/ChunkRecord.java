@@ -107,11 +107,22 @@ public final class ChunkRecord {
         lastChange = 0;
     }
 
-    /** Forget what was below the cut after an underground repair. */
+    /**
+     * After a rewild: the damage is gone and the chunk stays known, because Rewild knows exactly what's in it now,
+     * fresh terrain plus the kept blocks. Player-placed blocks were kept in place, so they stay recorded.
+     */
+    public void afterRewild(long now) {
+        removedBySection.clear();
+        explosionBlocks = 0;
+        changeBySection.clear();
+        visitBySection.clear();
+        lastReset = now;
+        lastChange = 0;
+    }
+
+    /** Forget the damage below the cut after an underground repair. Player-placed blocks there were kept in place. */
     public void clearBelow(int cutY, long now) {
         removedBySection.keySet().removeIf(s -> s * 16 < cutY);
-        placed.keySet().removeIf(p -> posY(p) < cutY);
-        filledContainers.removeIf(p -> posY(p) < cutY);
         changeBySection.keySet().removeIf(sec -> sec * 16 < cutY);
         visitBySection.keySet().removeIf(sec -> sec * 16 < cutY);
         explosionBlocks = 0;

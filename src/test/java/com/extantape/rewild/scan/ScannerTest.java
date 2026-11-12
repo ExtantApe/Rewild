@@ -36,7 +36,6 @@ class ScannerTest {
         ctx.settings = cfg.world("anything");
         ctx.now = NOW;
         ctx.epoch = 1;
-        ctx.intent = IntentRules.from(cfg);
         ctx.spawnX = 1000;
         ctx.spawnZ = 1000;
         // A 20x20 patch of known, untouched chunks, all present on disk with ground at y=64.
@@ -138,17 +137,37 @@ class ScannerTest {
     }
 
     @Test
-    void eachKeepRuleKeepsAndSaysWhy() {
-        String[][] cases = {
-                {"CHEST", "chest"}, {"RED_BED", "bed"}, {"OAK_SIGN", "sign"}, {"RAIL", "rail"}};
-        for (String[] c : cases) {
-            setUpQuietly();
-            minedOut(0, 0);
-            place(0, 0, 4, 70, 4, c[0]);
-            Scanner.Verdict v = verdict(0, 0);
-            assertEquals(Scanner.Kind.KEPT, v.kind(), c[0]);
-            assertTrue(String.join(" ", v.reasons()).contains(c[1]), v.reasons().toString());
-        }
+    void playerBlocksNoLongerKeepTheChunkButStayInPlace() {
+        // 0.3.0: a chest, a bed or a small cabin doesn't hold the whole chunk back. It stays exactly where it is, and
+        // the mined-out land around it rewilds.
+        minedOut(0, 0);
+        place(0, 0, 4, 70, 4, "CHEST");
+        for (int i = 0; i < 6; i++) place(0, 0, 5 + i, 70, 5, "OAK_PLANKS");
+        Scanner.Verdict v = verdict(0, 0);
+        assertEquals(Scanner.Kind.QUEUED, v.kind(), v.reasons().toString());
+        assertTrue(String.join(" ", v.reasons()).contains("stays in place: 7 player-placed blocks"), v.reasons().toString());
+    }
+
+    @Test
+    void keptAreasAreNamedInWhy() {
+        minedOut(0, 0);
+        ctx.areas.add(new com.extantape.rewild.keep.KeepPlan.Area("w", 3, 60, 3, 5, 70, 5, "a gate"));
+        ctx.areas.add(new com.extantape.rewild.keep.KeepPlan.Area("w", 100, 60, 100, 101, 70, 101, "far away"));
+        Scanner.Verdict v = verdict(0, 0);
+        assertEquals(Scanner.Kind.QUEUED, v.kind());
+        assertTrue(String.join(" ", v.reasons()).contains("1 kept area"), v.reasons().toString());
+    }
+
+    @Test
+    void chunkBornBeforeEveryBlockWasRecordedIsUnknown() {
+        // A chunk tracked by 0.2.x only had some placed blocks recorded, so a build there could be lost.
+        minedOut(0, 0);
+        ctx.everyBlockSince = NOW - 30 * Scanner.DAY;
+        Scanner.Verdict v = verdict(0, 0);
+        assertEquals(Scanner.Kind.UNKNOWN, v.kind());
+        assertTrue(v.reasons().get(0).contains("every player-placed block"), v.reasons().toString());
+        records.get(ChunkRecord.key(0, 0)).bornAt = NOW - 20 * Scanner.DAY;
+        assertEquals(Scanner.Kind.QUEUED, verdict(0, 0).kind());
     }
 
     void setUpQuietly() {
@@ -157,33 +176,6 @@ class ScannerTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    @Test
-    void strayTorchDoesNotKeepButASmallCabinDoes() {
-        minedOut(0, 0);
-        place(0, 0, 1, 70, 1, "TORCH");
-        assertEquals(Scanner.Kind.QUEUED, verdict(0, 0).kind());
-        place(0, 0, 2, 70, 2, "CRAFTING_TABLE");
-        assertEquals(Scanner.Kind.QUEUED, verdict(0, 0).kind());
-        for (int i = 0; i < 6; i++) place(0, 0, 5 + i, 70, 5, "OAK_PLANKS");
-        Scanner.Verdict v = verdict(0, 0);
-        assertEquals(Scanner.Kind.KEPT, v.kind());
-        assertTrue(v.reasons().get(0).contains("score"));
-    }
-
-    @Test
-    void loneAccidentalPathDoesNotProtectButThreeConnectedDoAcrossABorder() {
-        minedOut(0, 0);
-        minedOut(1, 0);
-        place(0, 0, 15, 64, 3, "DIRT_PATH");
-        assertEquals(Scanner.Kind.QUEUED, verdict(0, 0).kind());
-        place(1, 0, 0, 64, 3, "DIRT_PATH");
-        assertEquals(Scanner.Kind.QUEUED, verdict(0, 0).kind(), "two connected aren't enough");
-        place(1, 0, 1, 65, 3, "DIRT_PATH"); // a step up still connects
-        assertEquals(Scanner.Kind.KEPT, verdict(0, 0).kind());
-        assertEquals(Scanner.Kind.KEPT, verdict(1, 0).kind());
-        assertTrue(verdict(0, 0).reasons().contains("a player-made path"));
     }
 
     @Test
@@ -237,7 +229,8 @@ class ScannerTest {
     @Test
     void bufferKeepsNeighboursOfKeptChunks() {
         minedOut(0, 0);
-        place(1, 1, 3, 70, 3, "CHEST");
+        // A chunk kept whole (here an admin's /rewild protect) keeps the chunks around it too.
+        ctx.protectedAreas.add(new com.extantape.rewild.store.WorldStore.ProtectedArea(1, 1, 1, 1, "a farm"));
         Scanner.Verdict v = verdict(0, 0);
         assertEquals(Scanner.Kind.KEPT, v.kind());
         assertTrue(v.reasons().get(0).startsWith("next to a kept chunk"));
@@ -304,7 +297,8 @@ class ScannerTest {
         ChunkRecord r = minedOut(0, 0);
         r.removedBySection.clear();
         r.removedBySection.put(1, 60);
-        place(0, 0, 4, 20, 4, "CHEST");
+        // A named pet down in the mine keeps the whole chunk, so no cut can go above it.
+        facts.get(ChunkRecord.key(0, 0)).keptEntities.add(new ChunkFacts.KeptEntity("a named wolf", 20));
         Scanner.Verdict v = verdict(0, 0);
         assertEquals(Scanner.Kind.KEPT, v.kind());
         assertTrue(String.join(" ", v.reasons()).contains("under the cut"), v.reasons().toString());
@@ -317,7 +311,8 @@ class ScannerTest {
         r.removedBySection.put(1, 60);
         place(0, 0, 4, 70, 4, "CHEST");
         r.visitBySection.put(1, NOW - Scanner.DAY);
-        assertEquals(Scanner.Kind.KEPT, verdict(0, 0).kind());
+        r.lastVisit = NOW - Scanner.DAY;
+        assertEquals(Scanner.Kind.WAITING, verdict(0, 0).kind(), "visited down there, so neither a rewild nor a repair");
         r.visitBySection.clear();
         ctx.claims.add(new int[]{0, 0, 0, 0});
         assertEquals(Scanner.Kind.KEPT, verdict(0, 0).kind());
@@ -329,7 +324,8 @@ class ScannerTest {
         ChunkRecord r = minedOut(0, 0);
         r.removedBySection.clear();
         r.removedBySection.put(1, 60);
+        r.lastChange = NOW - Scanner.DAY; // the surface is lived in
         place(0, 0, 4, 70, 4, "CHEST");
-        assertEquals(Scanner.Kind.KEPT, verdict(0, 0).kind());
+        assertEquals(Scanner.Kind.WAITING, verdict(0, 0).kind());
     }
 }

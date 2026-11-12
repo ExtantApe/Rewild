@@ -21,7 +21,7 @@ public final class RegenConfig {
             int minRemovedBlocks, int minExplosionBlocks, List<String> damageIgnore,
             int daysWithoutChanges, int daysWithoutVisitors, int visitRadiusChunks, int daysSinceLastReset,
             int bufferChunks, int claimBufferChunks, int spawnRadiusChunks, int respawnRadiusChunks,
-            int pathMinConnected, int intentScore, List<String> structures, int endMainIslandRadiusBlocks,
+            List<String> structures, int endMainIslandRadiusBlocks,
             boolean undergroundEnabled, int undergroundMarginBlocks, int undergroundMinRemovedBlocks) {}
 
     public final boolean dryRun;
@@ -35,8 +35,10 @@ public final class RegenConfig {
     public final boolean blueMap;
     /** Worlds that never reset, overriding enabled. Kids' worlds belong here. */
     public final java.util.Set<String> neverReset = new java.util.HashSet<>();
-    public final List<String> intentKeep;
-    public final Map<String, Integer> intentScore;
+    /** Block types kept wherever they are when a chunk rewilds, with what holds them up. Dirt paths by default. */
+    public final List<String> keepBlocks;
+    /** Settings from before 0.3.0 that no longer do anything, to mention once in the log. */
+    public final List<String> retired = new ArrayList<>();
     private final Map<String, WorldSettings> worlds = new HashMap<>();
     private final WorldSettings disabled;
     private final List<String> errors = new ArrayList<>();
@@ -53,14 +55,9 @@ public final class RegenConfig {
         blueMap = bool(c, "bluemap.enabled", false);
         if (c.contains("never-reset-worlds") && !c.isList("never-reset-worlds")) errors.add("never-reset-worlds must be a list of world names");
         neverReset.addAll(c.getStringList("never-reset-worlds"));
-        intentKeep = patterns(c, "intent.keep");
-        intentScore = new LinkedHashMap<>();
-        ConfigurationSection score = c.getConfigurationSection("intent.score");
-        if (score != null) {
-            for (String k : score.getKeys(false)) {
-                if (!score.isInt(k) || score.getInt(k) < 0) errors.add("intent.score." + k + " must be a whole number, 0 or more");
-                else intentScore.put(k.toUpperCase(Locale.ROOT), score.getInt(k));
-            }
+        keepBlocks = c.contains("keep-blocks") ? patterns(c, "keep-blocks") : List.of("DIRT_PATH");
+        for (String old : List.of("intent", "defaults.keep.path-min-connected", "defaults.keep.intent-score")) {
+            if (c.contains(old)) retired.add(old);
         }
         ConfigurationSection defaults = c.getConfigurationSection("defaults");
         disabled = settings(defaults, null, "defaults", false);
@@ -106,7 +103,7 @@ public final class RegenConfig {
                 l.nonNegative("idle.visit-radius-chunks", 2), l.nonNegative("idle.days-since-last-reset", 30),
                 l.nonNegative("keep.buffer-chunks", 1), l.nonNegative("keep.claim-buffer-chunks", 1),
                 l.nonNegative("keep.spawn-radius-chunks", 8), l.nonNegative("keep.respawn-radius-chunks", 1),
-                l.positive("keep.path-min-connected", 3), l.positive("keep.intent-score", 8), l.strings("keep.structures"),
+                l.strings("keep.structures"),
                 l.nonNegative("keep.end-main-island-radius-blocks", 1100),
                 l.bool("underground.enabled", true), l.nonNegative("underground.margin-blocks", 8),
                 l.positive("underground.min-removed-blocks", 40));

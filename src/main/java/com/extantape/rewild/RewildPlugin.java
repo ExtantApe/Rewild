@@ -7,7 +7,6 @@ import com.extantape.rewild.map.MapLayer;
 import com.extantape.rewild.map.Preview;
 import com.extantape.rewild.run.Applier;
 import com.extantape.rewild.run.RunService;
-import com.extantape.rewild.scan.IntentRules;
 import com.extantape.rewild.scan.ScanService;
 import com.extantape.rewild.store.WorldStore;
 import com.extantape.rewild.track.TrackerListener;
@@ -91,7 +90,7 @@ public final class RewildPlugin extends JavaPlugin {
         tracking = new Tracking(this, config);
         tracking.start(startupStores);
         startupStores = new HashMap<>();
-        listener = new TrackerListener(this, tracking, IntentRules.from(config));
+        listener = new TrackerListener(this, tracking);
         getServer().getPluginManager().registerEvents(listener, this);
         scans = new ScanService(this, tracking);
         runs = new RunService(this, tracking);
@@ -107,11 +106,25 @@ public final class RewildPlugin extends JavaPlugin {
         getLifecycleManager().registerEventHandler(io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents.COMMANDS,
                 event -> {
                     event.registrar().register("rewild", "Rewild admin tools", wr);
-                    // The old names, for one release (0.2.x) after the rename from WildernessRegen.
-                    event.registrar().register("wr", "Old name for /rewild. Goes in the next release.", List.of("wildernessregen"), wr.deprecated());
                 });
         if (config.dryRun) getLogger().info("Dry run is on: approved runs are checked at startup and nothing resets.");
         if (tracking.states().isEmpty()) getLogger().info("No world is enabled yet. Add one under worlds: in config.yml.");
+        // Once every plugin has started: say which still need an answer, so nothing is rewilded behind an admin's back.
+        getServer().getScheduler().runTask(this, () -> {
+            String p = pluginsProblem();
+            if (p != null) getLogger().warning("Nothing resets yet: " + p + ". Answer with /rewild plugins respect <Name>,"
+                    + " /rewild plugins ignore <Name>, or /rewild plugins ignore-rest.");
+        });
+    }
+
+    /** Why the respected-plugin answers stop resets, or null. */
+    public String pluginsProblem() {
+        java.util.List<String> installed = new java.util.ArrayList<>();
+        for (org.bukkit.plugin.Plugin p : getServer().getPluginManager().getPlugins()) installed.add(p.getName());
+        return tracking.respect().blocking(installed, n -> {
+            org.bukkit.plugin.Plugin p = getServer().getPluginManager().getPlugin(n);
+            return p != null && p.isEnabled();
+        });
     }
 
     @Override
@@ -129,21 +142,22 @@ public final class RewildPlugin extends JavaPlugin {
         reloadConfig();
         config = new RegenConfig(getConfig());
         tracking.setConfig(config);
-        listener.setIntent(IntentRules.from(config));
+        tracking.respect().load();
+        tracking.commandKeeps().load();
         for (var w : Bukkit.getWorlds()) tracking.open(w, null);
         warnUnknownMaterials();
         return config.errors();
     }
 
     private void warnUnknownMaterials() {
-        java.util.List<String> patterns = new java.util.ArrayList<>(config.intentKeep);
-        patterns.addAll(config.intentScore.keySet());
-        for (String p : patterns) {
+        for (String p : config.keepBlocks) {
             boolean any = false;
-            for (Material m : Material.values()) if (!m.isLegacy() && RegenConfig.matches(p, m.name())) any = true;
-            if (!any && !p.equals("ITEM_FRAME") && !p.equals("GLOW_ITEM_FRAME") && !p.equals("ARMOR_STAND")) {
-                getLogger().info("intent pattern " + p + " matches no block in this version; it's ignored here.");
-            }
+            for (Material m : Material.values()) if (!m.isLegacy() && m.isBlock() && RegenConfig.matches(p, m.name())) any = true;
+            if (!any) getLogger().warning("keep-blocks entry " + p + " matches no block in this version; it keeps nothing.");
+        }
+        for (String old : config.retired) {
+            getLogger().info(old + " in config.yml does nothing since 0.3.0: every player-placed block now stays where it is"
+                    + " when the land around it rewilds. It can be deleted.");
         }
     }
 

@@ -28,7 +28,7 @@ public final class Scanner {
     public enum Category {
         CLAIM(false), PROTECTED(false), SPAWN(false), RESPAWN(false), PLAYER(false), END_ISLAND(false),
         EXTERNAL(false), STRUCTURE(false), UNREADABLE(false),
-        INTENT(true), PATH(true), CONTAINER(true), ENTITY(true), BUFFER(true);
+        ENTITY(true), BUFFER(true);
 
         public final boolean surface;
 
@@ -66,13 +66,15 @@ public final class Scanner {
         public final Set<Long> playerChunks = new HashSet<>();
         /** Chunks kept by other plugins or live checks, such as graves, portals and loaded pets. */
         public final Map<Long, List<String>> external = new HashMap<>();
-        public IntentRules intent;
+        /** Block areas kept by admins and respected plugins. They stay in place; the chunk around them can still rewild. */
+        public final List<com.extantape.rewild.keep.KeepPlan.Area> areas = new ArrayList<>();
+        /** When this world's tracker began recording every player-placed block. Chunks born earlier are unknown. */
+        public long everyBlockSince;
     }
 
     private final Context ctx;
     private final Map<Long, ChunkRecord> records;
     private final Map<Long, ChunkFacts> facts;
-    private Map<Long, Integer> pathComponentSize;
 
     public Scanner(Context ctx, Map<Long, ChunkRecord> records, Map<Long, ChunkFacts> facts) {
         this.ctx = ctx;
@@ -147,6 +149,10 @@ public final class Scanner {
                     : "generated before tracking began, so natural and player-placed blocks can't be told apart");
             return new Verdict(x, z, Kind.UNKNOWN, why, 0);
         }
+        if (r.bornAt < ctx.everyBlockSince) {
+            why.add("generated before Rewild recorded every player-placed block (0.3.0), so a build there could be lost");
+            return new Verdict(x, z, Kind.UNKNOWN, why, 0);
+        }
         if (r.epoch != ctx.epoch) {
             why.add("generated before the world generator changed, so a reset wouldn't blend");
             return new Verdict(x, z, Kind.UNKNOWN, why, 0);
@@ -167,8 +173,13 @@ public final class Scanner {
             List<String> waiting = timing(r.lastChange, r.lastVisit, r.lastReset);
             if (waiting.isEmpty()) {
                 why.add(damageText(r));
+                String stays = staysInPlace(r);
+                if (stays != null) why.add(stays);
                 return new Verdict(x, z, Kind.QUEUED, why, 0);
             }
+            // Someone still uses the surface. The ground well below it may be abandoned, though.
+            Verdict under = underground(r, keep);
+            if (under != null && under.kind() == Kind.UNDERGROUND) return under;
             return new Verdict(x, z, Kind.WAITING, waiting, 0);
         }
         // Kept, or not damaged enough for a full reset. A repair below ground may still apply.
@@ -183,6 +194,18 @@ public final class Scanner {
                 + s.minExplosionBlocks());
         if (under != null) why.addAll(under.reasons());
         return new Verdict(x, z, Kind.UNDAMAGED, why, 0);
+    }
+
+    /** What stays as it is when the chunk rewilds, or null if nothing known yet. Listed blocks are found at restart. */
+    String staysInPlace(ChunkRecord r) {
+        List<String> parts = new ArrayList<>();
+        if (!r.placed.isEmpty()) parts.add(r.placed.size() + " player-placed block" + (r.placed.size() == 1 ? "" : "s"));
+        if (!r.filledContainers.isEmpty()) parts.add(r.filledContainers.size() + " container" + (r.filledContainers.size() == 1 ? "" : "s") + " a player filled");
+        int areas = 0;
+        for (var a : ctx.areas) if (a.touchesChunk(r.x, r.z)) areas++;
+        if (areas > 0) parts.add(areas + " kept area" + (areas == 1 ? "" : "s"));
+        if (parts.isEmpty()) return null;
+        return "stays in place: " + String.join(", ", parts) + ", and what holds them up";
     }
 
     private String damageText(ChunkRecord r) {
@@ -244,14 +267,6 @@ public final class Scanner {
         String seam = seamProblem(r.x, r.z);
         if (seam != null) {
             no.add("below ground: " + seam);
-            return new Verdict(r.x, r.z, Kind.KEPT, no, cut);
-        }
-        int scoreBelow = 0;
-        for (var e : r.placed.entrySet()) {
-            if (ChunkRecord.posY(e.getKey()) < cut) scoreBelow += ctx.intent.score(e.getValue());
-        }
-        if (scoreBelow >= s.intentScore()) {
-            no.add("below ground: player-placed blocks under y=" + cut + " score " + scoreBelow);
             return new Verdict(r.x, r.z, Kind.KEPT, no, cut);
         }
         List<String> waiting = timing(r.lastChangeBelowSection(cutSection), r.lastVisitBelowSection(cutSection), r.lastReset);
@@ -346,97 +361,7 @@ public final class Scanner {
             for (ChunkFacts.KeptEntity e : f.keptEntities) out.add(new Reason(Category.ENTITY, e.reason(), (int) Math.floor(e.y())));
         }
 
-        ChunkRecord r = records.get(key);
-        if (r != null) {
-            int score = 0;
-            int scoreMinY = Integer.MAX_VALUE;
-            String keeper = null;
-            int keeperY = 0;
-            for (var e : r.placed.entrySet()) {
-                String m = e.getValue();
-                int y = ChunkRecord.posY(e.getKey());
-                if (ctx.intent.keepsAlone(m)) {
-                    if (keeper == null || y < keeperY) {
-                        keeper = m;
-                        keeperY = y;
-                    }
-                } else {
-                    int sc = ctx.intent.score(m);
-                    if (sc > 0) {
-                        score += sc;
-                        scoreMinY = Math.min(scoreMinY, y);
-                    }
-                }
-            }
-            if (keeper != null) out.add(new Reason(Category.INTENT, "player-placed " + keeper.toLowerCase(java.util.Locale.ROOT).replace('_', ' '), keeperY));
-            if (score >= s.intentScore()) out.add(new Reason(Category.INTENT, "player-built blocks score " + score + " (keeps at " + s.intentScore() + ")", scoreMinY));
-            if (!r.filledContainers.isEmpty()) {
-                int minY = Integer.MAX_VALUE;
-                for (long p : r.filledContainers) minY = Math.min(minY, ChunkRecord.posY(p));
-                out.add(new Reason(Category.CONTAINER, "a container a player put items in", minY));
-            }
-            int pathY = pathKeepY(r);
-            if (pathY != Integer.MAX_VALUE) out.add(new Reason(Category.PATH, "a player-made path", pathY));
-        }
         return out;
-    }
-
-    /** Lowest y of a path block in this chunk that belongs to a long enough connected path, or MAX_VALUE. */
-    private int pathKeepY(ChunkRecord r) {
-        if (pathComponentSize == null) pathComponentSize = pathComponents();
-        int min = Integer.MAX_VALUE;
-        for (var e : r.placed.entrySet()) {
-            if (!IntentRules.PATH.equals(e.getValue())) continue;
-            long world = worldPos(r.x, r.z, e.getKey());
-            Integer size = pathComponentSize.get(world);
-            if (size != null && size >= ctx.settings.pathMinConnected()) min = Math.min(min, ChunkRecord.posY(e.getKey()));
-        }
-        return min;
-    }
-
-    private static long worldPos(int cx, int cz, long local) {
-        return packWorld(cx * 16 + ChunkRecord.posX(local), ChunkRecord.posY(local), cz * 16 + ChunkRecord.posZ(local));
-    }
-
-    static long packWorld(int x, int y, int z) {
-        return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFF);
-    }
-
-    /** Groups every recorded player path block into connected paths, across chunk borders, and sizes each group. */
-    private Map<Long, Integer> pathComponents() {
-        Set<Long> all = new HashSet<>();
-        Map<Long, int[]> coords = new HashMap<>();
-        for (ChunkRecord r : records.values()) {
-            for (var e : r.placed.entrySet()) {
-                if (!IntentRules.PATH.equals(e.getValue())) continue;
-                int wx = r.x * 16 + ChunkRecord.posX(e.getKey()), wy = ChunkRecord.posY(e.getKey()), wz = r.z * 16 + ChunkRecord.posZ(e.getKey());
-                long p = packWorld(wx, wy, wz);
-                all.add(p);
-                coords.put(p, new int[]{wx, wy, wz});
-            }
-        }
-        Map<Long, Integer> size = new HashMap<>();
-        Set<Long> seen = new HashSet<>();
-        for (long start : all) {
-            if (seen.contains(start)) continue;
-            List<Long> group = new ArrayList<>();
-            ArrayDeque<Long> queue = new ArrayDeque<>();
-            queue.add(start);
-            seen.add(start);
-            while (!queue.isEmpty()) {
-                long p = queue.poll();
-                group.add(p);
-                int[] c = coords.get(p);
-                for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
-                    for (int dy = -1; dy <= 1; dy++) {
-                        long n = packWorld(c[0] + d[0], c[1] + dy, c[2] + d[1]);
-                        if (all.contains(n) && seen.add(n)) queue.add(n);
-                    }
-                }
-            }
-            for (long p : group) size.put(p, group.size());
-        }
-        return size;
     }
 
     /** Keeps the run under the cap, taking whole connected groups first, largest first. */

@@ -276,7 +276,7 @@ public final class WorldStore {
         flush();
         long next = generation + 1;
         Path snapshot = dir.resolve("chunks." + next + ".bin");
-        Path tmp = dir.resolve("chunks." + next + ".bin.wr-tmp");
+        Path tmp = dir.resolve("chunks." + next + ".bin.rewild-tmp");
         try (FileChannel ch = FileChannel.open(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
              DataOutputStream out = new DataOutputStream(new BufferedOutputStream(java.nio.channels.Channels.newOutputStream(ch), 1 << 16))) {
             out.writeInt(MAGIC);

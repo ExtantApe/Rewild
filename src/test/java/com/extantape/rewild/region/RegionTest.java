@@ -37,7 +37,7 @@ class RegionTest {
         assertEquals(1, again.count());
         assertNull(again.get(0));
         assertArrayEquals(before, again.get(RegionFile.index(1, 0)).data());
-        assertFalse(Files.exists(p.resolveSibling("r.0.0.mca.wr-tmp")));
+        assertFalse(Files.exists(p.resolveSibling("r.0.0.mca.rewild-tmp")));
     }
 
     @Test

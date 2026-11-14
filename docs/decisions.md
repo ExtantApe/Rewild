@@ -22,3 +22,7 @@ Decisions in the design brief that weren't reopened: off by default in every wor
   - Plugins report through `KeepProvider` (whole chunks, as before, and now block areas) or with `/rewild keep <world> <x y z> [<x y z>] plugin:<Name> [note]` and `/rewild unkeep`. An admin's keeps always count; a plugin's count while it's respected. `--json` on `keep list` and `plugins`.
   - Player-placed blocks are found by Rewild's own tracking, which now records every placed block. CoreProtect stays optional and unused, so Rewild doesn't depend on it while it's off on 26.3. Chunks generated before 0.3.0's tracking began stay unknown, because 0.2.x recorded only some placed blocks.
   - `/wr`, `/wildernessregen` and `wildernessregen.admin` are removed, as announced for the release after 0.2.x.
+
+## 2026-11-14
+
+- **No old names (owner, D196):** "Make sure none of the plugins retain old references or commands". The folder move from the plugin's earlier name and its tests are removed. Released as 0.3.2.

@@ -48,11 +48,9 @@ Rewild changes world files, so its safety promises come first. "Acceptance" is `
 | Crash-safe at every step, including undo | unit `crashAtEveryStepResumesToTheSameResult`, `crashDuringUndoResumes`; acceptance kill -9 |
 | Read-only world or unwritable trash: no change at all | unit `readOnlyWorldFolderFailsWithoutChangingAnything`, `trashThatCantBeWrittenStopsBeforeAnyChange` |
 | Below-ground repair only under the cut; refused if bedrock differs | unit `belowGroundRepairReplacesOnlySectionsUnderTheCut`, `referenceWithDifferentBedrockIsRefused` |
-| Upgrade from WildernessRegen: folder moved, fails closed | unit `MigrationTest`; acceptance "Upgrade from WildernessRegen" |
 
 **Gaps added this audit:** the never-reset test in bold.
 
-**Found and fixed:** 0.2.0 still told admins to use `/wr` in several messages and log lines (a miss in the rename). 0.2.1 names `/rewild` everywhere; the deprecation notice still names `/wr` on purpose.
 
 **Skipped, with reasons:**
 - How a reset area looks and blends in a real client: real client only, in the README's untested list.

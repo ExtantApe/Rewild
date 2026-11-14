@@ -526,19 +526,6 @@ const pWhy = await ps.cmd(`rewild why world ${px >> 4} ${pz >> 4}`, /Chunk -?\d+
 check('fresh install on a played world: the mined chunk is unknown', /unknown/.test(pWhy))
 await ps.stop()
 
-console.log('\n## Upgrade from WildernessRegen')
-{
-  const { renameSync, readdirSync } = await import('node:fs')
-  const now = path.join(played, 'plugins/Rewild'), old = path.join(played, 'plugins/WildernessRegen')
-  const before = readdirSync(now).sort().join(',')
-  renameSync(now, old)
-  await ps.start()
-  check('plugins/WildernessRegen is moved to plugins/Rewild on first start', existsSync(path.join(now, 'config.yml')) && !existsSync(old) && readdirSync(now).sort().join(',') === before, readdirSync(now).sort().join(','))
-  check('the log says what was moved', /Moved plugins\/WildernessRegen to plugins\/Rewild/.test(ps.log))
-  const oldWhy = await ps.cmd(`wr why world ${px >> 4} ${pz >> 4}`, /Unknown or incomplete command|Chunk -?\d+/)
-  check('the old command /wr is gone in 0.3.0, as announced', !/Chunk -?\d+/.test(oldWhy), oldWhy.split('\n').slice(-2).join(' ').slice(0, 160))
-  await ps.stop()
-}
 ps.remove()
 
 process.exitCode = report(path.join(REPO, `build/acceptance-${VERSION}.json`)) ? 1 : 0

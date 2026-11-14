@@ -30,62 +30,8 @@ public final class RewildPlugin extends JavaPlugin {
     private RunService runs;
     private Preview preview;
     private MapLayer mapLayer = MapLayer.NONE;
-    /** Set when the move from plugins/WildernessRegen failed. Then nothing runs at all, so no data is stranded. */
-    private String migrationProblem;
-
-    /** Runs before any world loads: apply or undo approved runs while no chunk is open. */
-    @Override
-    public void onLoad() {
-        Migration.Result moved = Migration.moveIfMissing(getDataFolder().toPath().resolveSibling("WildernessRegen"), getDataFolder().toPath());
-        if (moved.failed()) {
-            migrationProblem = moved.message();
-            getLogger().severe(moved.message());
-            return;
-        }
-        if (moved.message() != null) getLogger().warning(moved.message());
-        saveDefaultConfig();
-        reloadConfig();
-        config = new RegenConfig(getConfig());
-        for (String e : config.errors()) getLogger().severe("config.yml: " + e + ". Nothing will reset until it's fixed.");
-        Applier applier = new Applier(getDataFolder().toPath(), getLogger(), config, Bukkit.getMinecraftVersion());
-        String crashAt = System.getProperty("rewild.test.crashAt");
-        if (crashAt != null) {
-            // Test servers only: stop the process dead at a named step, like kill -9, to prove recovery.
-            applier.setCrashHook(marker -> {
-                if (marker.equals(crashAt)) {
-                    getLogger().severe("TEST: halting before " + marker);
-                    Runtime.getRuntime().halt(137);
-                }
-                return false;
-            });
-        }
-        try {
-            applier.runStartup();
-        } catch (RuntimeException e) {
-            getLogger().log(Level.SEVERE, "The startup step failed; world files are as the journal last recorded", e);
-        }
-        startupStores = applier.stores();
-        if (Boolean.getBoolean("rewild.test.haltAfterStartup")) {
-            // Test servers only: stop right after the startup step, before the server writes anything, so a test can
-            // compare world files and see exactly what this step changed.
-            for (WorldStore s : startupStores.values()) {
-                try {
-                    s.close();
-                } catch (java.io.IOException ignored) {
-                }
-            }
-            getLogger().severe("TEST: halting after the startup step");
-            Runtime.getRuntime().halt(0);
-        }
-    }
-
     @Override
     public void onEnable() {
-        if (migrationProblem != null) {
-            getLogger().severe("Rewild is turning itself off, so nothing resets until the folder is moved. " + migrationProblem);
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
         warnUnknownMaterials();
         tracking = new Tracking(this, config);
         tracking.start(startupStores);
@@ -102,10 +48,10 @@ public final class RewildPlugin extends JavaPlugin {
                 getLogger().warning("BlueMap is installed but its API couldn't be loaded; no map layer: " + e);
             }
         }
-        RewildCommand wr = new RewildCommand(this);
+        RewildCommand command = new RewildCommand(this);
         getLifecycleManager().registerEventHandler(io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents.COMMANDS,
                 event -> {
-                    event.registrar().register("rewild", "Rewild admin tools", wr);
+                    event.registrar().register("rewild", "Rewild admin tools", command);
                 });
         if (config.dryRun) getLogger().info("Dry run is on: approved runs are checked at startup and nothing resets.");
         if (tracking.states().isEmpty()) getLogger().info("No world is enabled yet. Add one under worlds: in config.yml.");

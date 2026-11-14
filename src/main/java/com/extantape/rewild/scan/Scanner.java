@@ -147,15 +147,15 @@ public final class Scanner {
         if (r == null || !r.known) {
             why.add(r == null ? "no tracking history: it was generated before tracking began, or never changed"
                     : "generated before tracking began, so natural and player-placed blocks can't be told apart");
-            return new Verdict(x, z, Kind.UNKNOWN, why, 0);
+            return unknown(x, z, why);
         }
         if (r.bornAt < ctx.everyBlockSince) {
             why.add("generated before Rewild recorded every player-placed block (0.3.0), so a build there could be lost");
-            return new Verdict(x, z, Kind.UNKNOWN, why, 0);
+            return unknown(x, z, why);
         }
         if (r.epoch != ctx.epoch) {
             why.add("generated before the world generator changed, so a reset wouldn't blend");
-            return new Verdict(x, z, Kind.UNKNOWN, why, 0);
+            return unknown(x, z, why);
         }
         List<Reason> keep = keepReasons(x, z);
         boolean fullDamage = r.removed() >= s.minRemovedBlocks() || r.explosionBlocks >= s.minExplosionBlocks();
@@ -194,6 +194,12 @@ public final class Scanner {
                 + s.minExplosionBlocks());
         if (under != null) why.addAll(under.reasons());
         return new Verdict(x, z, Kind.UNDAMAGED, why, 0);
+    }
+
+    /** An unknown chunk never resets; any keep that also covers it is listed too, so /rewild why shows it. */
+    private Verdict unknown(int x, int z, List<String> why) {
+        for (Reason reason : keepReasons(x, z)) why.add("also kept: " + reason.text());
+        return new Verdict(x, z, Kind.UNKNOWN, why, 0);
     }
 
     /** What stays as it is when the chunk rewilds, or null if nothing known yet. Listed blocks are found at restart. */

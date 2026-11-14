@@ -119,6 +119,17 @@ class ScannerTest {
     }
 
     @Test
+    void unknownChunkStillNamesWhatKeepsIt() {
+        // Found on the 26.2 clone: the station's own chunk predates tracking, and /rewild why only said "unknown".
+        ChunkRecord r = minedOut(0, 0);
+        r.known = false;
+        ctx.external.put(ChunkRecord.key(0, 0), List.of("the station (Waystation)"));
+        Scanner.Verdict v = verdict(0, 0);
+        assertEquals(Scanner.Kind.UNKNOWN, v.kind());
+        assertTrue(String.join(" ", v.reasons()).contains("also kept: the station (Waystation)"), v.reasons().toString());
+    }
+
+    @Test
     void chunkFromAnOlderGeneratorIsUnknown() {
         minedOut(0, 0).epoch = 0;
         assertEquals(Scanner.Kind.UNKNOWN, verdict(0, 0).kind());

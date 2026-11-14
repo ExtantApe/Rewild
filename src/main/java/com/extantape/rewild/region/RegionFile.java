@@ -211,7 +211,7 @@ public final class RegionFile {
     }
 
     public static void writeFileAtomically(Path target, byte[] bytes) throws IOException {
-        Path tmp = target.resolveSibling(target.getFileName() + ".wr-tmp");
+        Path tmp = target.resolveSibling(target.getFileName() + ".rewild-tmp");
         try (FileChannel ch = FileChannel.open(tmp, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
             ByteBuffer buf = ByteBuffer.wrap(bytes);
             while (buf.hasRemaining()) ch.write(buf);

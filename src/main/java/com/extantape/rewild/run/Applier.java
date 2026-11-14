@@ -370,7 +370,7 @@ public final class Applier {
 
     static void copyDurably(Path from, Path to) throws IOException {
         Files.createDirectories(to.getParent());
-        Path tmp = to.resolveSibling(to.getFileName() + ".wr-tmp");
+        Path tmp = to.resolveSibling(to.getFileName() + ".rewild-tmp");
         Files.copy(from, tmp, StandardCopyOption.REPLACE_EXISTING);
         try (var ch = java.nio.channels.FileChannel.open(tmp, java.nio.file.StandardOpenOption.WRITE)) {
             ch.force(true);

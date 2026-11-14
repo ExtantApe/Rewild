@@ -88,7 +88,7 @@ Before either kind of change, the plugin checks the bedrock pattern of the fresh
 
 If the server has no claim plugin at all, set `claims.plugin: none`.
 
-**Upgrading from 0.2.x:** 0.2.x only recorded some placed blocks, so chunks it tracked stay unknown and never rewild. Only land generated after the upgrade can. The `intent` settings in config.yml do nothing now and can be deleted. `/wr`, `/wildernessregen` and the `wildernessregen.admin` permission are gone; use `/rewild` and `rewild.admin`.
+**Upgrading from 0.2.x:** 0.2.x only recorded some placed blocks, so chunks it tracked stay unknown and never rewild. Only land generated after the upgrade can. The `intent` settings in config.yml do nothing now and can be deleted.admin` permission are gone; use `/rewild` and `rewild.admin`.
 
 ## Commands
 

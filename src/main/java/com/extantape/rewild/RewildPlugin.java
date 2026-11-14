@@ -30,6 +30,45 @@ public final class RewildPlugin extends JavaPlugin {
     private RunService runs;
     private Preview preview;
     private MapLayer mapLayer = MapLayer.NONE;
+    /** Runs before any world loads: apply or undo approved runs while no chunk is open. */
+    @Override
+    public void onLoad() {
+        saveDefaultConfig();
+        reloadConfig();
+        config = new RegenConfig(getConfig());
+        for (String e : config.errors()) getLogger().severe("config.yml: " + e + ". Nothing will reset until it's fixed.");
+        Applier applier = new Applier(getDataFolder().toPath(), getLogger(), config, Bukkit.getMinecraftVersion());
+        String crashAt = System.getProperty("rewild.test.crashAt");
+        if (crashAt != null) {
+            // Test servers only: stop the process dead at a named step, like kill -9, to prove recovery.
+            applier.setCrashHook(marker -> {
+                if (marker.equals(crashAt)) {
+                    getLogger().severe("TEST: halting before " + marker);
+                    Runtime.getRuntime().halt(137);
+                }
+                return false;
+            });
+        }
+        try {
+            applier.runStartup();
+        } catch (RuntimeException e) {
+            getLogger().log(Level.SEVERE, "The startup step failed; world files are as the journal last recorded", e);
+        }
+        startupStores = applier.stores();
+        if (Boolean.getBoolean("rewild.test.haltAfterStartup")) {
+            // Test servers only: stop right after the startup step, before the server writes anything, so a test can
+            // compare world files and see exactly what this step changed.
+            for (WorldStore s : startupStores.values()) {
+                try {
+                    s.close();
+                } catch (java.io.IOException ignored) {
+                }
+            }
+            getLogger().severe("TEST: halting after the startup step");
+            Runtime.getRuntime().halt(0);
+        }
+    }
+
     @Override
     public void onEnable() {
         warnUnknownMaterials();

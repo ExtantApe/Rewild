@@ -34,9 +34,21 @@ export function report(file) {
   return failed.length
 }
 
+// D226: a run removes everything it created, pass, fail or interrupted, and nothing else. Folders made by freshServer
+// are recorded and deleted at exit, after any server still running is killed. KEEP_TEST_SERVERS=1 keeps them.
+const created = new Set(), procs = new Set()
+function cleanupAll() {
+  for (const p of procs) try { if (p.exitCode === null && p.signalCode === null) p.kill('SIGKILL') } catch {}
+  if (process.env.KEEP_TEST_SERVERS === '1') return
+  for (const d of created) try { rmSync(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }) } catch {}
+}
+process.on('exit', cleanupAll)
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => { cleanupAll(); process.exit(128 + ({ SIGHUP: 1, SIGINT: 2, SIGTERM: 15 })[sig]) })
+
 /** A fresh server folder. Paper's downloaded libraries are cloned from a primed folder to save time. */
 export function freshServer(version, { seed = 424242, plugins = [], config = null, props = {} } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), `rewild-test-${version}-`))
+  created.add(dir)
   copyFileSync(path.join(CACHE, `paper-${version}.jar`), path.join(dir, 'paper.jar'))
   const prime = path.join(CACHE, `prime-${version}`)
   for (const f of ['libraries', 'versions', 'cache']) {
@@ -74,6 +86,7 @@ export class Server {
     this.exit = new Promise(resolve => {
       this.proc = spawn(JAVA, ['-Xms1G', '-Xmx3G', '-Dterminal.jline=false', '-Dterminal.ansi=false', ...jvm, '-jar', 'paper.jar', 'nogui'],
         { cwd: this.dir, stdio: ['pipe', 'pipe', 'pipe'] })
+      procs.add(this.proc)
       const add = d => { this.log += d.toString() }
       this.proc.stdout.on('data', add)
       this.proc.stderr.on('data', add)

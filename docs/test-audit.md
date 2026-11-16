@@ -55,3 +55,9 @@ Rewild changes world files, so its safety promises come first. "Acceptance" is `
 **Skipped, with reasons:**
 - How a reset area looks and blends in a real client: real client only, in the README's untested list.
 - LanternGraves as a real keep provider: it doesn't register one yet; `keep.mjs` uses a stand-in with the same name.
+
+## 2026-11-16: cleanup (D226)
+
+- **Covered:** the harness records each server folder it creates and each Java process it starts. When the run ends (pass, fail, an uncaught error, Ctrl-C, SIGTERM or SIGHUP) it kills those processes and deletes those folders, and nothing else. A folder from an earlier run that's in the way stops the run; it isn't deleted. `KEEP_TEST_SERVERS=1` keeps the folders for debugging.
+- **Checked by hand:** on MobShowdown, a full run (42/42) and a run interrupted after 45 seconds both left the work folder empty, with no Java left and the test port closed. The other harnesses use the same code.
+- **Gap skipped:** the suite can't check its own leftovers, because cleanup runs as the process exits. A wrapper that checks after the suite exits would add more machinery than the check is worth here.

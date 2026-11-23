@@ -33,6 +33,12 @@ public final class RegenConfig {
     public final String warnMessage;
     public final int trashKeepDays;
     public final boolean blueMap;
+    /** Gradual healing (0.4.0, D224): explosion holes in natural land heal on their own, a step at a time. */
+    public final boolean healExplosions;
+    public final int healDays, healStepHours, healPauseRadius, healBuildRadius;
+    /** Worlds where Magic is played: nothing there resets or heals unless Magic is running and answers (D224). */
+    public final java.util.Set<String> magicWorlds = new java.util.HashSet<>();
+    public final int magicRadius;
     /** Worlds that never reset, overriding enabled. Kids' worlds belong here. */
     public final java.util.Set<String> neverReset = new java.util.HashSet<>();
     /** Block types kept wherever they are when a chunk rewilds, with what holds them up. Dirt paths by default. */
@@ -53,6 +59,14 @@ public final class RegenConfig {
         warnMessage = string(c, "run.warn-message", "Some untouched wild land in this world will refresh at the next restart.");
         trashKeepDays = positive(c, "trash.keep-days", 30);
         blueMap = bool(c, "bluemap.enabled", false);
+        healExplosions = bool(c, "healing.explosions", true);
+        healDays = positive(c, "healing.days", 7);
+        healStepHours = positive(c, "healing.step-hours", 24);
+        healPauseRadius = positive(c, "healing.pause-radius", 24);
+        healBuildRadius = positive(c, "healing.build-radius", 8);
+        if (c.contains("magic.worlds") && !c.isList("magic.worlds")) errors.add("magic.worlds must be a list of world names");
+        magicWorlds.addAll(c.getStringList("magic.worlds"));
+        magicRadius = positive(c, "magic.keep-radius", 8);
         if (c.contains("never-reset-worlds") && !c.isList("never-reset-worlds")) errors.add("never-reset-worlds must be a list of world names");
         neverReset.addAll(c.getStringList("never-reset-worlds"));
         keepBlocks = c.contains("keep-blocks") ? patterns(c, "keep-blocks") : List.of("DIRT_PATH");

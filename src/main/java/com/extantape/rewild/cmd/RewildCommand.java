@@ -28,7 +28,7 @@ import java.util.Set;
 /** /rewild: admin-only, registered through Paper's command API. Players get no commands. */
 public final class RewildCommand implements BasicCommand {
     public static final String PERMISSION = "rewild.admin";
-    private static final List<String> SUBS = List.of("status", "why", "preview", "scan", "approve", "undo", "protect", "keep", "unkeep", "plugins", "reload");
+    private static final List<String> SUBS = List.of("status", "why", "preview", "scan", "approve", "undo", "protect", "keep", "unkeep", "plugins", "healing", "reload");
     private final RewildPlugin plugin;
 
     public RewildCommand(RewildPlugin plugin) {
@@ -79,12 +79,13 @@ public final class RewildCommand implements BasicCommand {
                 case "keep" -> keep(sender, args);
                 case "unkeep" -> unkeep(sender, args);
                 case "plugins" -> plugins(sender, args);
+                case "healing" -> healing(sender, args);
                 case "reload" -> {
                     List<String> errors = plugin.reload();
                     if (errors.isEmpty()) say(sender, NamedTextColor.GREEN, "Config reloaded. New thresholds apply to the next scan.");
                     else say(sender, NamedTextColor.RED, "Config reloaded with problems, so nothing will reset: " + String.join("; ", errors));
                 }
-                default -> say(sender, NamedTextColor.GRAY, "/rewild status | why [world] [x z] | preview [radius] | scan [world] | approve <run> | approve generator <world> | undo <run> | protect [radius] [note] | protect remove | protect list | keep <world> <x y z> [<x y z>] [plugin:<Name>] [note] | keep list [world] [--json] | unkeep <id> | plugins [respect|ignore <Name>...] [ignore-rest] [--json] | reload");
+                default -> say(sender, NamedTextColor.GRAY, "/rewild status | why [world] [x z] | preview [radius] | scan [world] | approve <run> | approve generator <world> | undo <run> | protect [radius] [note] | protect remove | protect list | keep <world> <x y z> [<x y z>] [plugin:<Name>] [note] | keep list [world] [--json] | unkeep <id> | plugins [respect|ignore <Name>...] [ignore-rest] [--json] | healing [step|cancel <id>] | reload");
             }
         } catch (IOException e) {
             say(sender, NamedTextColor.RED, "That failed: " + e.getMessage());
@@ -525,6 +526,39 @@ public final class RewildCommand implements BasicCommand {
         say(sender, NamedTextColor.GREEN, "Protected " + (2 * radius + 1) * (2 * radius + 1) + " chunk(s) around you. They'll never reset.");
     }
 
+    /** /rewild healing: list holes healing on their own; step one now (still waits for nearby players); cancel one. */
+    private void healing(CommandSender sender, String[] args) throws IOException {
+        var h = plugin.healing();
+        if (args.length >= 3 && args[1].equalsIgnoreCase("cancel")) {
+            if (h.cancel(args[2])) say(sender, NamedTextColor.GREEN, "Healing " + args[2] + " canceled. What's already back stays.");
+            else say(sender, NamedTextColor.RED, "No healing called " + args[2] + ". /rewild healing lists them.");
+            return;
+        }
+        if (args.length >= 3 && args[1].equalsIgnoreCase("step")) {
+            var j = h.all().stream().filter(x -> x.id.equals(args[2])).findFirst().orElse(null);
+            World w = j == null ? null : Bukkit.getWorld(j.world);
+            if (j == null || w == null) {
+                say(sender, NamedTextColor.RED, "No healing called " + args[2] + " in a loaded world. /rewild healing lists them.");
+                return;
+            }
+            say(sender, NamedTextColor.GREEN, h.step(j, w, System.currentTimeMillis(), true));
+            return;
+        }
+        var all = h.all();
+        if (all.isEmpty()) {
+            say(sender, NamedTextColor.GRAY, plugin.tracking().config().healExplosions
+                ? "No explosion holes are healing right now." : "Explosion holes don't heal on their own here (healing.explosions is false).");
+            return;
+        }
+        say(sender, NamedTextColor.GREEN, all.size() + " hole(s) healing, about one step every " + plugin.tracking().config().healStepHours + " hours:");
+        for (var j : all) {
+            World w = Bukkit.getWorld(j.world);
+            int[] c = j.center();
+            say(sender, NamedTextColor.GRAY, j.id + "  " + (w == null ? "unloaded world" : w.getName()) + " " + c[0] + " " + c[1] + " " + c[2]
+                + "  " + j.cells.size() + " blocks, " + j.done + " step(s) done, next " + date(j.next));
+        }
+    }
+
     @Override
     public java.util.Collection<String> suggest(CommandSourceStack source, String[] args) {
         CommandSender sender = source.getSender();
@@ -547,6 +581,9 @@ public final class RewildCommand implements BasicCommand {
         if (args.length == 3 && sub.equals("approve") && args[1].equalsIgnoreCase("generator")) {
             return plugin.tracking().states().stream().map(s -> s.name).filter(n -> n.startsWith(args[2])).toList();
         }
+        if (args.length == 2 && sub.equals("healing")) return List.of("step", "cancel").stream().filter(s -> s.startsWith(args[1])).toList();
+        if (args.length == 3 && sub.equals("healing") && (args[1].equalsIgnoreCase("step") || args[1].equalsIgnoreCase("cancel")))
+            return plugin.healing().all().stream().map(j -> j.id).filter(s -> s.startsWith(args[2])).toList();
         if (args.length == 2 && sub.equals("protect")) return List.of("remove", "list", "0", "1", "2");
         if (args.length == 2 && sub.equals("plugins")) return List.of("respect", "ignore", "ignore-rest", "--json").stream().filter(s -> s.startsWith(args[1])).toList();
         if (args.length == 3 && sub.equals("plugins") && (args[1].equalsIgnoreCase("respect") || args[1].equalsIgnoreCase("ignore"))) {

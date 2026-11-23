@@ -28,6 +28,7 @@ public final class RewildPlugin extends JavaPlugin {
     private TrackerListener listener;
     private ScanService scans;
     private RunService runs;
+    private com.extantape.rewild.heal.HealService healing;
     private Preview preview;
     private MapLayer mapLayer = MapLayer.NONE;
     /** Runs before any world loads: apply or undo approved runs while no chunk is open. */
@@ -80,6 +81,8 @@ public final class RewildPlugin extends JavaPlugin {
         scans = new ScanService(this, tracking);
         runs = new RunService(this, tracking);
         preview = new Preview(this, scans);
+        healing = new com.extantape.rewild.heal.HealService(this, tracking);
+        healing.start();
         if (config.blueMap && Bukkit.getPluginManager().getPlugin("BlueMap") != null) {
             try {
                 mapLayer = new BlueMapLayer(getLogger());
@@ -115,6 +118,7 @@ public final class RewildPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         if (preview != null) preview.stopAll();
+        if (healing != null) healing.stop();
         mapLayer.close();
         if (tracking == null) return;
         var snaps = runs.shutdownSnapshots();
@@ -156,6 +160,10 @@ public final class RewildPlugin extends JavaPlugin {
 
     public RunService runs() {
         return runs;
+    }
+
+    public com.extantape.rewild.heal.HealService healing() {
+        return healing;
     }
 
     public Preview preview() {

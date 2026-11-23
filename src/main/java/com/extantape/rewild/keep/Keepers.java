@@ -45,10 +45,19 @@ public final class Keepers {
     private final Respect respect;
     private final CommandKeeps commandKeeps;
 
+    private final Set<String> magicWorlds;
+    private final int magicRadius;
+
     public Keepers(String claimPlugin, Respect respect, CommandKeeps commandKeeps) {
+        this(claimPlugin, respect, commandKeeps, Set.of(), 8);
+    }
+
+    public Keepers(String claimPlugin, Respect respect, CommandKeeps commandKeeps, Set<String> magicWorlds, int magicRadius) {
         this.claimPlugin = claimPlugin;
         this.respect = respect;
         this.commandKeeps = commandKeeps;
+        this.magicWorlds = magicWorlds;
+        this.magicRadius = magicRadius;
     }
 
     public Result read(World w) {
@@ -58,6 +67,7 @@ public final class Keepers {
         readProviders(w, r);
         readCommandKeeps(w, r);
         readMultiversePortals(w, r);
+        MagicKeeps.read(w, magicWorlds, magicRadius, r);
         return r;
     }
 

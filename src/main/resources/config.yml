@@ -9,7 +9,7 @@
 # reported in the log, and no world file changes.
 dry-run: true
 
-# Worlds that must never reset, whatever else this file says. Put every kids' world here. A world listed here is
+# Worlds that must never reset, whatever else this file says, such as creative, flatland and lobby worlds. A world listed here is
 # never tracked, scanned or reset, even if it's also enabled below.
 never-reset-worlds: []
 
@@ -22,6 +22,30 @@ worlds:
   #   enabled: true
   #   idle:
   #     days-without-changes: 60
+
+# Gradual healing. An explosion hole (a creeper, TNT) heals on its own, a step at a time, when it's in land Rewild knows
+# is natural, it destroyed nothing a player placed, and no build, filled container, claim, kept area, admin-protected
+# area, respawn point or Magic block is near it. Any other hole waits for an admin's approved run, as before.
+# The ground fills bottom up, about one step a day: dirt first, then grass, then saplings, young trees and full trees,
+# then flowers and grass. A typical crater takes about a week. Healing waits while a player is nearby, and while
+# dry-run is true it only says in the log what it would put back.
+healing:
+  explosions: true
+  # About how many days a typical crater takes from the first step to the last.
+  days: 7
+  # Hours between steps.
+  step-hours: 24
+  # Healing waits while a player is within this many blocks of the hole.
+  pause-radius: 24
+  # A player's block or filled container within this many blocks keeps a hole from healing on its own.
+  build-radius: 8
+
+# Worlds where the Magic plugin is played. In these, nothing resets or heals unless Magic is running and answers.
+# Wherever Magic is running, its blocks (with keep-radius blocks around each, for its structure) and the changes its
+# spells will undo are kept in place.
+magic:
+  worlds: []
+  keep-radius: 8
 
 # The claim plugin that must be running before anything resets. If it's missing or broken, nothing resets.
 # Set to "none" only for a server with no claim plugin at all.

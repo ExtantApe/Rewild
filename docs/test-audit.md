@@ -2,6 +2,27 @@
 
 Kept by this repo's owning session (Minecraft: Plugins Lead), per `~/Code/CLAUDE.md`, "Test self-audits". Newest first.
 
+## 2026-11-22: 0.4.0 gradual healing and the Magic hook (K675)
+
+Offline, unit tests only: no test servers tonight (owner). 103 unit tests pass.
+
+| Promise | Covered by |
+| --- | --- |
+| A typical crater heals in about a week, bottom up, one band of layers a step | `HealPlanTest.aTypicalCraterTakesAboutAWeekAndFillsBottomUp`, `aDeepHoleTakesMoreLayersPerStepNotMoreDays` |
+| Grass comes back as dirt first, and the grass step may replace only that dirt | `grassComesBackAsDirtFirstThenGrassReplacingIt` |
+| Felled trees: sapling, then young tree replacing only its sapling, then whole | `aFelledTreeComesBackAsASaplingThenAYoungTreeThenWhole`, `touchingLogsAreOneTreeAndSeparateOnesAreTwo`, `saplingsMatchTheWoodAndStrippedOrUnknownLogsGetNone` |
+| Small plants last; air never placed; each block once | `smallPlantsComeBackLast`, `airIsNeverPlacedAndEveryRecordedBlockComesBackOnce`, `nothingToHealMeansNoSteps` |
+| **Only natural, known land heals without approval** (fails closed) | `HealCheckAndJobTest.unknownLandNeverHealsOnItsOwn`, `aBlastThroughPlayerBlocksWaitsForAnAdmin`, `aBuildNearbyStopsIt_evenInTheNextChunk`, `aFilledContainerNearbyStopsIt`, `aHoleInKnownNaturalLandHeals` |
+| Healing survives a restart; a damaged file is refused, not guessed | `aJobSurvivesARestartExactly`, `aDamagedJobFileIsRefusedNotGuessed` |
+| **A Magic world without Magic running never resets or heals**; Magic that can't answer stops resets | `MagicKeepsTest` (5 tests) |
+| Settings default to a week and bad values stop resets | `RegenConfigTest.healingIsOnWithAWeekAndMagicWorldsAreRead` |
+
+Gaps, for the bot run before release (not possible tonight):
+- The server side of a step: pausing near a player, waiting for unloaded chunks, not overwriting a block placed since, skipping blocks an entity is in, dry run placing nothing, claims and kept areas refusing a hole, and a blast through a chest refusing it. These need a Paper server; add them to `test/` as `heal.mjs`, with `healing.step-hours` forced through `/rewild healing step`.
+- The Magic hook against a running Magic 11.3: it was written against the jar's interfaces only.
+
+Skipped: none of the pure rules; the reflection calls themselves are left to the bot run, since a mock would only test the mock.
+
 ## 2026-11-12: the 0.3.0 redesign
 
 The redesign changes what a reset does, so every keep and safety promise was mapped again. "Acceptance" is `test/acceptance.mjs` and `test/keep.mjs` on a throwaway Paper 26.3 (build 249) server; "unit" is `src/test`.

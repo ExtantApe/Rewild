@@ -80,4 +80,26 @@ class RegenConfigTest {
         assertTrue(RegenConfig.matches("CHEST", "CHEST"));
         assertFalse(RegenConfig.matches("CHEST", "TRAPPED_CHEST"));
     }
+
+    @Test
+    void healingIsOnWithAWeekAndMagicWorldsAreRead() {
+        RegenConfig c = new RegenConfig(shipped());
+        assertTrue(c.healExplosions);
+        assertEquals(7, c.healDays);
+        assertEquals(24, c.healStepHours);
+        assertEquals(24, c.healPauseRadius);
+        assertEquals(8, c.healBuildRadius);
+        assertTrue(c.magicWorlds.isEmpty());
+        assertTrue(c.healthy(), String.join("; ", c.errors()));
+        YamlConfiguration y = shipped();
+        y.set("magic.worlds", java.util.List.of("magic", "second_magic"));
+        y.set("healing.days", 0);
+        RegenConfig d = new RegenConfig(y);
+        assertEquals(java.util.Set.of("magic", "second_magic"), d.magicWorlds);
+        assertEquals(7, d.healDays, "a bad value falls back");
+        assertFalse(d.healthy(), "and is reported, so nothing resets");
+        y.set("healing.days", 7);
+        y.set("magic.worlds", "magic");
+        assertFalse(new RegenConfig(y).healthy(), "magic.worlds must be a list");
+    }
 }

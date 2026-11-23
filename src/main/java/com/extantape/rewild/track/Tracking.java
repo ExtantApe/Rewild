@@ -69,7 +69,7 @@ public final class Tracking {
 
     /** Reads everything outside the tracker that can keep a chunk or a block, for one world. Main thread only. */
     public com.extantape.rewild.keep.Keepers.Result keepers(World w) {
-        return new com.extantape.rewild.keep.Keepers(config.claimPlugin, respect(), commandKeeps()).read(w);
+        return new com.extantape.rewild.keep.Keepers(config.claimPlugin, respect(), commandKeeps(), config.magicWorlds, config.magicRadius).read(w);
     }
 
     public void setConfig(RegenConfig config) {

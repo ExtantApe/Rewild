@@ -2,7 +2,7 @@
 
 A Paper plugin that rewilds abandoned, mined-out land back to fresh terrain from the world's seed, and keeps every block players placed exactly where it is. Paths, builds, chests and protected places stay; the holes, quarries and craters around them fill back in.
 
-**Status:** pre-release. 0.4.0 adds gradual healing of explosion holes and a hook for the Magic plugin; those have passed unit tests only, and haven't run on a server yet. 0.3.0 is a redesign and has passed its tests on throwaway Paper 26.3 servers with a bot as the player (see [Testing](#testing)). It hasn't run on a real server, and nobody has looked at a rewilded area in a real game client yet.
+**Status:** pre-release. 0.4.0 adds gradual healing of explosion holes and a hook for the Magic plugin. Healing passed `test/heal.mjs` on a throwaway Paper 26.3 server with a bot; the Magic hook has passed unit tests only, and neither has been seen in a real game client. 0.3.0 is a redesign and has passed its tests on throwaway Paper 26.3 servers with a bot as the player (see [Testing](#testing)). It hasn't run on a real server, and nobody has looked at a rewilded area in a real game client yet.
 
 - Paper 26.1 and newer, Java 25. Not Spigot, and not 1.21.x.
 - Off in every world until you turn it on. Dry run by default. Worlds in `never-reset-worlds`, such as creative and lobby worlds, can never be turned on by mistake.
@@ -74,7 +74,7 @@ A typical crater, 3 or 4 layers deep, takes about a week. A deeper hole fills mo
 
 A hole only heals on its own when all of this holds: the world is enabled, the land was generated after Rewild started tracking it, the blast destroyed nothing a player placed and no container, and no player's block or filled container, claim, kept area, admin-protected area, respawn point or Magic block is within 8 blocks. Any other hole waits for an admin's approved run, as before.
 
-Healing waits while a player is within 24 blocks, while the hole's chunks aren't loaded, and while anything that would stop a reset is wrong (the claim plugin is down, say). Each step only fills air, water and blocks anything may replace, such as short grass and snow, plus the dirt or sapling an earlier step laid. It never fills a block something is in, and never replaces a block a player put there since. While `dry-run` is true, each step is only reported in the log. `/rewild healing` lists the holes healing now.
+Healing waits while a player is within 24 blocks, while the hole's chunks aren't loaded, and while anything that would stop a reset is wrong (the claim plugin is down, say). Each step only fills air, water and blocks anything may replace, such as short grass and snow, plus the dirt or sapling an earlier step laid. It never fills a block a mob or pet is in, and never replaces a block a player put there since. While `dry-run` is true, each step is only reported in the log. `/rewild healing` lists the holes healing now.
 
 ### Magic
 
@@ -163,7 +163,7 @@ If a respected provider throws, nothing in that world resets. If LanternGraves i
 - A below-ground repair drops mobs and items under the cut, and doesn't bring back mineshaft minecarts.
 - GriefPrevention is the only claim plugin supported. Animated Architecture has no hook, but its builds are made of player-placed blocks, which the tracker sees.
 - Undo restores a chunk as it was before the run, so anything built in it since is lost.
-- Healing has passed unit tests only (0.4.0). It hasn't run on a server yet, with a bot or a player.
+- The Magic hook has passed unit tests only, written against the Magic 11.3 jar's interfaces. It hasn't run against a running Magic.
 - If a healing sapling grows into a tree on its own before the young-tree step, that step leaves the trunk alone and adds the young tree's leaves and logs around it where there's air.
 - A healed hole gets back the blocks the blast destroyed. Water or lava that flowed in and set into stone or obsidian is left as it is, because it isn't air.
 

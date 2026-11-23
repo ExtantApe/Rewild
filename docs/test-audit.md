@@ -17,8 +17,10 @@ Offline, unit tests only: no test servers tonight (owner). 103 unit tests pass.
 | **A Magic world without Magic running never resets or heals**; Magic that can't answer stops resets | `MagicKeepsTest` (5 tests) |
 | Settings default to a week and bad values stop resets | `RegenConfigTest.healingIsOnWithAWeekAndMagicWorldsAreRead` |
 
-Gaps, for the bot run before release (not possible tonight):
-- The server side of a step: pausing near a player, waiting for unloaded chunks, not overwriting a block placed since, skipping blocks an entity is in, dry run placing nothing, claims and kept areas refusing a hole, and a blast through a chest refusing it. These need a Paper server; add them to `test/` as `heal.mjs`, with `healing.step-hours` forced through `/rewild healing step`.
+Bot run, same night after the owner's go: `test/heal.mjs` on Paper 26.3, 19 of 19. It found one bug, fixed before release: a step skipped any block an entity was in, so the blast's own dropped items kept 13 of 114 blocks from coming back. Only mobs and pets count now, and the rerun brought all 111 back.
+
+Still open:
+- Covered by `heal.mjs` now: pausing near a player, not overwriting a block placed since, dry run placing nothing, a nearby build and a blast through a chest refusing a hole, restart. Not yet: waiting for unloaded chunks, skipping a block a mob is in, claims and kept areas (the test runs with `claims: none`).
 - The Magic hook against a running Magic 11.3: it was written against the jar's interfaces only.
 
 Skipped: none of the pure rules; the reflection calls themselves are left to the bot run, since a mock would only test the mock.

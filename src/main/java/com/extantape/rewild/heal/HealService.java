@@ -200,9 +200,11 @@ public final class HealService implements org.bukkit.event.Listener {
             if (l.getX() >= b[0] - r && l.getX() <= b[2] + r && l.getZ() >= b[1] - r && l.getZ() <= b[3] + r) return "paused: a player is nearby";
         }
         int placed = 0, blocked = 0;
-        // Never fill a block a mob, pet or dropped item is in (players are already kept well away).
+        // Never fill a block a mob or pet is in (players are already kept well away). Dropped items don't count: the
+        // game pushes them out of a block placed on them, and the blast's own drops lie in the hole.
         var box = new org.bukkit.util.BoundingBox(b[0], w.getMinHeight(), b[1], b[2] + 1, w.getMaxHeight(), b[3] + 1);
-        List<org.bukkit.util.BoundingBox> occupied = w.getNearbyEntities(box).stream().map(org.bukkit.entity.Entity::getBoundingBox).toList();
+        List<org.bukkit.util.BoundingBox> occupied = w.getNearbyEntities(box, e -> e instanceof org.bukkit.entity.LivingEntity)
+            .stream().map(org.bukkit.entity.Entity::getBoundingBox).toList();
         for (HealPlan.Placement p : steps.get(j.done)) {
             Block at = w.getBlockAt(p.x(), p.y(), p.z());
             if (!replaceable(at, p.over())) { blocked++; continue; }

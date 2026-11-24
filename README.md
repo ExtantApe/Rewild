@@ -163,7 +163,7 @@ If a respected provider throws, nothing in that world resets. If LanternGraves i
 - A below-ground repair drops mobs and items under the cut, and doesn't bring back mineshaft minecarts.
 - GriefPrevention is the only claim plugin supported. Animated Architecture has no hook, but its builds are made of player-placed blocks, which the tracker sees.
 - Undo restores a chunk as it was before the run, so anything built in it since is lost.
-- The Magic hook has passed unit tests only, written against the Magic 11.3 jar's interfaces. It hasn't run against a running Magic.
+- The Magic hook has run against the real Magic 11.3 on a throwaway Paper 26.3 server (`test/magic.mjs`, 2026-11-24): with Magic running, a hole in a Magic world heals; with Magic gone, nothing there heals. A spell's own blast hasn't been tested, because no console-cast spell made a hole in that run.
 - If a healing sapling grows into a tree on its own before the young-tree step, that step leaves the trunk alone and adds the young tree's leaves and logs around it where there's air.
 - A healed hole gets back the blocks the blast destroyed. Water or lava that flowed in and set into stone or obsidian is left as it is, because it isn't air.
 

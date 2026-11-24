@@ -2,6 +2,13 @@
 
 Kept by this repo's owning session (Minecraft: Plugins Lead), per `~/Code/CLAUDE.md`, "Test self-audits". Newest first.
 
+
+## 2026-11-24: Magic hook against the real plugin
+- Promises: in a world listed in magic.worlds, nothing heals or resets unless Magic is running and answers; Magic's blocks and spell changes are kept; a spell's blast is left to Magic.
+- Covered: fail closed without Magic, and normal healing with Magic running, by `test/magic.mjs` (4/4 on Paper 26.3 with Magic 11.3). The scan names the reason ("Magic isn't running, and world is a Magic world").
+- Checked by hand: every method Rewild reaches by reflection exists on Magic 11.3's implementation classes (getController, getMagicBlocks, getPendingUndo, getLocation, getTemplateKey, affectsWorld, getArea, contains(Block), getMin, getMax).
+- Gaps skipped (and why): a spell's own blast. Console casts made no hole in the test, and a fix needs a player-cast spell; Magic will undo its own spells either way. Kept Magic blocks: needs a placed Magic block, which needs Magic's configs; the reflection check and unit tests cover the read.
+
 ## 2026-11-22: 0.4.0 gradual healing and the Magic hook (K675)
 
 Offline, unit tests only: no test servers tonight (owner). 103 unit tests pass.
